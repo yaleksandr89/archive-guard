@@ -1,0 +1,54 @@
+{
+    "name": "yaleksandr89/archive-guard",
+    "description": "Security-first inspection and controlled extraction of untrusted ZIP archives for PHP.",
+    "homepage": "https://github.com/yaleksandr89/archive-guard",
+    "keywords": [
+        "archive",
+        "zip",
+        "security",
+        "extraction",
+        "zip-slip",
+        "zip-bomb"
+    ],
+    "authors": [
+        {
+            "name": "Александр Юрченко",
+            "email": "y.aleksandr89@yandex.ru",
+            "homepage": "https://github.com/yaleksandr89",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/yaleksandr89/archive-guard/issues",
+        "source": "https://github.com/yaleksandr89/archive-guard"
+    },
+    "funding": [
+        {
+            "type": "other",
+            "url": "https://boosty.to/backendbezpafosa"
+        },
+        {
+            "type": "other",
+            "url": "https://sponsr.ru/backendbezpafosa/"
+        }
+    ],
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "ext-zip": "*",
+        "php": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Yaleksandr\\ArchiveGuard\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Yaleksandr\\ArchiveGuard\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
