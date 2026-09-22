@@ -39,6 +39,10 @@ final class TarInspectionTest extends TestCase
         }
         yield 'long link symlink' => [Tar::record('long', "target\0", 'K') . Tar::record('link', '', '2'), ViolationCode::SymlinkEntry];
         yield 'long link file' => [Tar::record('long', "target\0", 'K') . Tar::record('file'), ViolationCode::UnsupportedFeature];
+        yield 'duplicate GNU long name' => [Tar::record('long', "first\0", 'L') . Tar::record('long', "second\0", 'L') . Tar::record('file'), ViolationCode::UnsupportedFeature];
+        yield 'duplicate GNU long link' => [Tar::record('long', "first\0", 'K') . Tar::record('long', "second\0", 'K') . Tar::record('link', '', '2'), ViolationCode::UnsupportedFeature];
+        yield 'GNU long name and local PAX path' => [Tar::record('long', "first\0", 'L') . Tar::record('pax', Tar::pax(['path' => 'second']), 'x') . Tar::record('file'), ViolationCode::UnsupportedFeature];
+        yield 'repeated local PAX' => [Tar::record('pax', Tar::pax(['path' => 'first']), 'x') . Tar::record('pax', Tar::pax(['path' => 'second']), 'x') . Tar::record('file'), ViolationCode::UnsupportedFeature];
         yield 'pax link file' => [Tar::record('pax', Tar::pax(['linkpath' => 'target']), 'x') . Tar::record('file'), ViolationCode::UnsupportedFeature];
         $header = Tar::record('binary');
         yield 'gnu sparse bookkeeping' => [Tar::checksum(substr_replace(Tar::record('file', gnu: true), '1', 482, 1)), ViolationCode::UnsupportedFeature];
@@ -140,6 +144,9 @@ final class TarInspectionTest extends TestCase
         yield 'missing end' => [$header];
         yield 'one zero block' => [$header . str_repeat("\0", 512)];
         yield 'payload truncated' => [Tar::record('entry', declaredSize: 2048) . str_repeat("\0", 1024)];
+        yield 'ambiguous name' => [Tar::archive(Tar::checksum(substr_replace($header, 'x', 6, 1)))];
+        yield 'pax length without separator' => [Tar::archive(Tar::record('pax', "9path=a\n", 'x'))];
+        yield 'pax length with leading zero' => [Tar::archive(Tar::record('pax', "09 path=a\n", 'x'))];
         yield 'pax missing newline' => [Tar::archive(Tar::record('pax', '9 path=ab', 'x'))];
         yield 'pax missing equals' => [Tar::archive(Tar::record('pax', "7 path\n", 'x'))];
         yield 'bad pax' => [Tar::archive(Tar::record('pax', '99 path=short', 'x'))];
