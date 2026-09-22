@@ -44,7 +44,7 @@ final class TemporaryWorkspace
                 unlink($file);
             }
         }
-        foreach ($this->directories as $directory) {
+        foreach (array_reverse($this->directories) as $directory) {
             if (is_link($directory)) {
                 unlink($directory);
                 continue;
