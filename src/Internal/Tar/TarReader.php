@@ -18,6 +18,7 @@ final class TarReader
     private int $compressedRead = 0;
     private int|float $decompressedBytes = 0;
     private bool $ratioExceeded = false;
+    private readonly bool $gzip;
 
     public function __construct(string $path, bool $gzip, private readonly int $sourceBytes, private readonly ?float $maxCompressionRatio)
     {
@@ -26,6 +27,7 @@ final class TarReader
             throw new ArchiveOpenException('Cannot open TAR stream.');
         }
         $this->stream = $stream;
+        $this->gzip = $gzip;
         if ($gzip) {
             $inflate = inflate_init(ZLIB_ENCODING_GZIP);
             if ($inflate === false) {
@@ -38,6 +40,24 @@ final class TarReader
     public function close(): void
     {
         fclose($this->stream);
+    }
+    public function rewind(): void
+    {
+        if (!@rewind($this->stream)) {
+            throw new ArchiveOpenException('Cannot rewind TAR source.');
+        }
+        $this->buffer = '';
+        $this->ended = false;
+        $this->compressedRead = 0;
+        $this->decompressedBytes = 0;
+        $this->ratioExceeded = false;
+        if ($this->gzip) {
+            $inflate = inflate_init(ZLIB_ENCODING_GZIP);
+            if ($inflate === false) {
+                throw new ArchiveOpenException('Cannot reset GZIP decoder.');
+            }
+            $this->inflate = $inflate;
+        }
     }
     public function ratioExceeded(): bool
     {
