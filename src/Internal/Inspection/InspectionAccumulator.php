@@ -27,14 +27,16 @@ final class InspectionAccumulator
     {
         $this->violations[] = new Violation($code, str_replace('_', ' ', $code->value) . '.', $name);
     }
-    public function path(string $name, bool $directory): void
+    public function path(string $name, bool $directory): ?string
     {
         $canonical = new PathCanonicalizer()->canonicalize($name);
         if ($canonical === null || ($canonical === '' && !$directory)) {
             $this->add(ViolationCode::UnsafePath, $name);
+            return null;
         } elseif ($canonical !== '' && !$this->registry->register($canonical, $directory)) {
             $this->add(ViolationCode::PathCollision, $name);
         }
+        return $canonical;
     }
     public function payload(int $size, ?string $name): bool
     {
