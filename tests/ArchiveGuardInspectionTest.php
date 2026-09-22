@@ -104,6 +104,8 @@ final class ArchiveGuardInspectionTest extends TestCase
         yield 'truncated zip' => ["PK\x03\x04bad"];
         yield 'gzip crc' => [substr_replace(Tar::gzip(Tar::archive('')), "\xff\xff\xff\xff", -8, 4)];
         yield 'truncated gzip trailer' => [substr(Tar::gzip(Tar::archive('')), 0, -4)];
+        yield 'trailing gzip byte' => [Tar::gzip(Tar::archive('')) . 'x'];
+        yield 'concatenated gzip member' => [Tar::gzip(Tar::archive('')) . Tar::gzip(Tar::archive(''))];
     }
     #[DataProvider('malformed')]
     #[TestDox('Нераспознанные и повреждённые архивы вызывают исключение')]
