@@ -57,10 +57,19 @@ final class TemporaryWorkspace
                 if (!$item instanceof SplFileInfo) {
                     throw new RuntimeException('Unexpected test fixture entry.');
                 }
-                if ($item->isDir() && !$item->isLink()) {
-                    rmdir($item->getPathname());
+                $path = $item->getPathname();
+                if ($item->isLink()) {
+                    if (PHP_OS_FAMILY === 'Windows' && $item->isDir()) {
+                        rmdir($path);
+                    } else {
+                        unlink($path);
+                    }
+                    continue;
+                }
+                if ($item->isDir()) {
+                    rmdir($path);
                 } else {
-                    unlink($item->getPathname());
+                    unlink($path);
                 }
             }
             rmdir($directory);
