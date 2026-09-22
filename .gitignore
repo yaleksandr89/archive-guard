@@ -4,14 +4,8 @@
 /auth.json
 /composer.lock
 
-# PHPUnit
-/.phpunit.cache/
-/.phpunit.result.cache
-
-# Coverage
-/coverage/
-/coverage.xml
-/clover.xml
+# Development artifacts
+/.build/
 
 # JetBrains IDEs
 /.idea/
