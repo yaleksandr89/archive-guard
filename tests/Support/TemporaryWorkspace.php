@@ -59,7 +59,8 @@ final class TemporaryWorkspace
                 }
                 $path = $item->getPathname();
                 if ($item->isLink()) {
-                    if (PHP_OS_FAMILY === 'Windows' && $item->isDir()) {
+                    clearstatcache(true, $path);
+                    if (PHP_OS_FAMILY === 'Windows' && is_dir($path)) {
                         rmdir($path);
                     } else {
                         unlink($path);
