@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
+use Yaleksandr\ArchiveGuard\ExtractionMode;
+use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory as Zip;
 use Yaleksandr\ArchiveGuard\ViolationCode;
@@ -40,15 +42,15 @@ final class ZipExtractionTest extends TestCase
     public function testRejectedEntries(array $entries, ViolationCode $code): void
     {
         $path = Zip::create($this->workspace, $entries);
-        $destination = $this->workspace->directory();
+        $destination = $this->workspace->directory() . '/result';
         $guard = new ArchiveGuard();
         self::assertSame($code, $guard->inspect($path, new ArchivePolicy(10000, 10, 1000, 1000))->violations()[0]->code);
         try {
-            $guard->extract($path, $destination, new ArchivePolicy(10000, 10, 1000, 1000));
+            $guard->extract($path, $destination, new ArchivePolicy(10000, 10, 1000, 1000), new ExtractionOptions(ExtractionMode::Atomic));
             self::fail('Rejected entry extracted.');
         } catch (ArchiveRejectedException $e) {
             self::assertContains($code, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
-            self::assertSame(['.', '..'], scandir($destination));
+            self::assertFalse(file_exists($destination));
         }
     }
 }
