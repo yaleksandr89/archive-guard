@@ -10,7 +10,6 @@ use PHPUnit\Framework\TestCase;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
-use Yaleksandr\ArchiveGuard\ExtractionMode;
 use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory as Zip;
@@ -46,7 +45,7 @@ final class ZipExtractionTest extends TestCase
         $guard = new ArchiveGuard();
         self::assertSame($code, $guard->inspect($path, new ArchivePolicy(10000, 10, 1000, 1000))->violations()[0]->code);
         try {
-            $guard->extract($path, $destination, new ArchivePolicy(10000, 10, 1000, 1000), new ExtractionOptions(ExtractionMode::Atomic));
+            $guard->extract($path, $destination, new ArchivePolicy(10000, 10, 1000, 1000), ExtractionOptions::atomic());
             self::fail('Rejected entry extracted.');
         } catch (ArchiveRejectedException $e) {
             self::assertContains($code, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));

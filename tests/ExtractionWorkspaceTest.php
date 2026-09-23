@@ -8,11 +8,14 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
+use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
-use Yaleksandr\ArchiveGuard\Internal\Extraction\AtomicExtractionWorkspace;
+use Yaleksandr\ArchiveGuard\ExtractionConflictStrategy;
+use Yaleksandr\ArchiveGuard\Internal\Extraction\ExtractionWorkspace;
+use Yaleksandr\ArchiveGuard\Internal\Extraction\MergeExtractionPublisher;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 
-final class AtomicExtractionWorkspaceTest extends TestCase
+final class ExtractionWorkspaceTest extends TestCase
 {
     private TemporaryWorkspace $workspace;
 
@@ -32,7 +35,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
         $parent = $this->workspace->directory();
         mkdir($parent . '/nested');
         $final = $parent . '/result';
-        $atomic = new AtomicExtractionWorkspace($parent . '/nested/../result');
+        $atomic = ExtractionWorkspace::atomic($parent . '/nested/../result');
         try {
             $staging = $atomic->stagingPath();
             self::assertSame(realpath($parent), dirname($staging));
@@ -53,7 +56,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     {
         $parent = $this->workspace->directory();
         file_put_contents($parent . '/keep', 'untouched');
-        $atomic = new AtomicExtractionWorkspace($parent . '/result');
+        $atomic = ExtractionWorkspace::atomic($parent . '/result');
         $staging = $atomic->stagingPath();
         mkdir($staging . '/nested');
         file_put_contents($staging . '/nested/partial', 'partial');
@@ -68,10 +71,10 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     public function testLockContentionAndRelease(): void
     {
         $parent = $this->workspace->directory();
-        $first = new AtomicExtractionWorkspace($parent . '/result');
+        $first = ExtractionWorkspace::atomic($parent . '/result');
         try {
             try {
-                new AtomicExtractionWorkspace($parent . '/./result');
+                ExtractionWorkspace::atomic($parent . '/./result');
                 self::fail('Concurrent workspace acquired the same destination.');
             } catch (ExtractionException $e) {
                 self::assertStringContainsString('locked', $e->getMessage());
@@ -82,7 +85,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
             $first->close();
         }
         self::assertFalse(file_exists($staging));
-        $second = new AtomicExtractionWorkspace($parent . '/result');
+        $second = ExtractionWorkspace::atomic($parent . '/result');
         try {
             self::assertNotSame($staging, $second->stagingPath());
             self::assertDirectoryExists($second->stagingPath());
@@ -95,9 +98,9 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     public function testDifferentDestinationsCanBeHeldTogether(): void
     {
         $parent = $this->workspace->directory();
-        $first = new AtomicExtractionWorkspace($parent . '/first');
+        $first = ExtractionWorkspace::atomic($parent . '/first');
         try {
-            $second = new AtomicExtractionWorkspace($parent . '/second');
+            $second = ExtractionWorkspace::atomic($parent . '/second');
             try {
                 self::assertNotSame($first->stagingPath(), $second->stagingPath());
                 self::assertDirectoryExists($first->stagingPath());
@@ -115,7 +118,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     {
         $parent = $this->workspace->directory();
         $final = $parent . '/result';
-        $atomic = new AtomicExtractionWorkspace($final);
+        $atomic = ExtractionWorkspace::atomic($final);
         $staging = $atomic->stagingPath();
         file_put_contents($staging . '/file', 'extracted');
         // Model a non-cooperating writer before the final check, not inside its rename gap.
@@ -138,7 +141,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     {
         $parent = $this->workspace->directory();
         $final = $parent . '/result';
-        $atomic = new AtomicExtractionWorkspace($final);
+        $atomic = ExtractionWorkspace::atomic($final);
         $staging = $atomic->stagingPath();
         try {
             if (!@symlink($parent . '/missing', $final)) {
@@ -161,7 +164,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     {
         $outside = $this->workspace->directory();
         file_put_contents($outside . '/keep', 'safe');
-        $atomic = new AtomicExtractionWorkspace($this->workspace->directory() . '/result');
+        $atomic = ExtractionWorkspace::atomic($this->workspace->directory() . '/result');
         $staging = $atomic->stagingPath();
         try {
             if (!@symlink($outside, $staging . '/directory-link')
@@ -182,7 +185,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     {
         $outside = $this->workspace->directory();
         file_put_contents($outside . '/keep', 'safe');
-        $atomic = new AtomicExtractionWorkspace($this->workspace->directory() . '/result');
+        $atomic = ExtractionWorkspace::atomic($this->workspace->directory() . '/result');
         $staging = $atomic->stagingPath();
         try {
             rmdir($staging);
@@ -201,7 +204,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     public function testRenameFailureReleasesLockOnClose(): void
     {
         $final = $this->workspace->directory() . '/result';
-        $atomic = new AtomicExtractionWorkspace($final);
+        $atomic = ExtractionWorkspace::atomic($final);
         // Deterministically make rename fail without changing the final destination.
         rmdir($atomic->stagingPath());
         try {
@@ -213,7 +216,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
             $atomic->close();
         }
         self::assertFalse(file_exists($final));
-        $next = new AtomicExtractionWorkspace($final);
+        $next = ExtractionWorkspace::atomic($final);
         try {
             self::assertDirectoryExists($next->stagingPath());
         } finally {
@@ -226,7 +229,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     public function testCleanupFailurePreservesPublishFailure(): void
     {
         $final = $this->workspace->directory() . '/result';
-        $atomic = new AtomicExtractionWorkspace($final);
+        $atomic = ExtractionWorkspace::atomic($final);
         $blocked = $atomic->stagingPath() . '/blocked';
         mkdir($blocked);
         file_put_contents($blocked . '/partial', 'partial');
@@ -254,7 +257,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
             self::assertDirectoryExists($blocked);
             self::assertSame(['.', '..'], scandir($final));
             rmdir($final);
-            $next = new AtomicExtractionWorkspace($final);
+            $next = ExtractionWorkspace::atomic($final);
             $next->close();
         } finally {
             chmod($blocked, 0700);
@@ -275,7 +278,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
     public function testCleanupFailureWithoutPrimaryFailure(bool $destructor): void
     {
         $final = $this->workspace->directory() . '/result';
-        $atomic = new AtomicExtractionWorkspace($final);
+        $atomic = ExtractionWorkspace::atomic($final);
         $blocked = $atomic->stagingPath() . '/blocked';
         mkdir($blocked);
         file_put_contents($blocked . '/partial', 'partial');
@@ -295,7 +298,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
                 }
             }
             self::assertDirectoryExists($blocked);
-            $next = new AtomicExtractionWorkspace($final);
+            $next = ExtractionWorkspace::atomic($final);
             $next->close();
             self::assertFalse(file_exists($final));
         } finally {
@@ -339,7 +342,7 @@ final class AtomicExtractionWorkspaceTest extends TestCase
             mkdir($target);
         }
         try {
-            new AtomicExtractionWorkspace($parent . '/result');
+            ExtractionWorkspace::atomic($parent . '/result');
             self::fail('Unsafe lock object accepted.');
         } catch (ExtractionException $e) {
             self::assertStringContainsString($fixture === 'namespace-file' || $fixture === 'namespace-link' ? 'namespace' : 'lock path', $e->getMessage());
@@ -365,12 +368,184 @@ final class AtomicExtractionWorkspaceTest extends TestCase
             self::markTestSkipped('Filesystem cannot create the 255-character destination fixture.');
         }
         rmdir($parent . '/' . $name);
-        $atomic = new AtomicExtractionWorkspace($parent . '/' . $name);
+        $atomic = ExtractionWorkspace::atomic($parent . '/' . $name);
         $atomic->close();
         $lockPath = $parent . '/.archive-guard-locks/' . $name;
         self::assertSame('', file_get_contents($lockPath));
-        $again = new AtomicExtractionWorkspace($parent . '/' . $name);
+        $again = ExtractionWorkspace::atomic($parent . '/' . $name);
         $again->close();
         self::assertSame([$name], array_values(array_diff(scandir($parent . '/.archive-guard-locks') ?: [], ['.', '..'])));
     }
+    public function testMergeLockAndRootIdentity(): void
+    {
+        $parent = $this->workspace->directory();
+        $destination = $parent . '/result';
+        mkdir($destination);
+        $merge = ExtractionWorkspace::merge($destination);
+        try {
+            try {
+                ExtractionWorkspace::merge($parent . '/./result');
+                self::fail('Second merge acquired the held lock.');
+            } catch (ExtractionException $e) {
+                self::assertStringContainsString('locked', $e->getMessage());
+            }
+            try {
+                $merge->publish();
+                self::fail('Merge published staging wholesale.');
+            } catch (ExtractionException $e) {
+                self::assertStringContainsString('Only Atomic', $e->getMessage());
+            }
+            rename($destination, $parent . '/original');
+            mkdir($destination);
+            try {
+                $merge->mergeDestination();
+                self::fail('Replaced root accepted.');
+            } catch (ExtractionException $e) {
+                self::assertStringContainsString('root changed', $e->getMessage());
+            }
+        } finally {
+            $merge->close();
+        }
+        $next = ExtractionWorkspace::merge($destination);
+        $next->close();
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function mergeMutations(): iterable
+    {
+        yield 'new target appeared' => ['appeared'];
+        yield 'overwrite target became directory' => ['directory'];
+        yield 'parent became link' => ['parent-link'];
+        yield 'staged source disappeared' => ['missing-source'];
+    }
+
+    #[DataProvider('mergeMutations')]
+    public function testApplyRechecksStateAndKeepsCompletedWrites(string $mutation): void
+    {
+        $parent = $this->workspace->directory();
+        $destination = $parent . '/result';
+        mkdir($destination);
+        mkdir($destination . '/z');
+        $outside = $this->workspace->directory();
+        file_put_contents($outside . '/keep', 'safe');
+        if ($mutation === 'directory') {
+            file_put_contents($destination . '/z/file', 'old');
+        }
+        $merge = ExtractionWorkspace::merge($destination);
+        $stage = $merge->stagingPath();
+        file_put_contents($stage . '/a', 'applied');
+        mkdir($stage . '/z');
+        file_put_contents($stage . '/z/file', 'new');
+        $publisher = new MergeExtractionPublisher($merge, ExtractionConflictStrategy::Overwrite);
+        $publisher->preflight();
+        if ($mutation === 'appeared') {
+            file_put_contents($destination . '/z/file', 'external');
+        } elseif ($mutation === 'directory') {
+            unlink($destination . '/z/file');
+            mkdir($destination . '/z/file');
+        } elseif ($mutation === 'parent-link') {
+            rmdir($destination . '/z');
+            if (!@symlink($outside, $destination . '/z')) {
+                $merge->close();
+                self::markTestSkipped('Runtime cannot create a directory link for apply recheck.');
+            }
+        } else {
+            unlink($stage . '/z/file');
+        }
+        $failure = null;
+        try {
+            $publisher->apply(ArchiveFormat::Tar);
+            self::fail('Changed merge state accepted.');
+        } catch (ExtractionException $e) {
+            $failure = $e;
+            self::assertSame('applied', file_get_contents($destination . '/a'));
+            self::assertSame('safe', file_get_contents($outside . '/keep'));
+            self::assertFileDoesNotExist($outside . '/file');
+            if ($mutation === 'appeared') {
+                self::assertSame('external', file_get_contents($destination . '/z/file'));
+            } elseif ($mutation === 'directory') {
+                self::assertDirectoryExists($destination . '/z/file');
+            }
+        } finally {
+            $merge->close($failure);
+        }
+        self::assertDirectoryDoesNotExist($stage);
+        $next = ExtractionWorkspace::merge($destination);
+        $next->close();
+    }
+
+    #[RequiresOperatingSystemFamily('Linux')]
+    public function testMergeApplyFailureSurvivesCleanupFailure(): void
+    {
+        $destination = $this->workspace->directory() . '/result';
+        mkdir($destination);
+        $merge = ExtractionWorkspace::merge($destination);
+        $stage = $merge->stagingPath();
+        file_put_contents($stage . '/a', 'applied');
+        file_put_contents($stage . '/b', 'fail');
+        $publisher = new MergeExtractionPublisher($merge, ExtractionConflictStrategy::Reject);
+        $publisher->preflight();
+        unlink($stage . '/b');
+        mkdir($stage . '/blocked');
+        file_put_contents($stage . '/blocked/keep', 'blocked');
+        chmod($stage . '/blocked', 0000);
+        try {
+            if (is_readable($stage . '/blocked')) {
+                self::markTestSkipped('Runtime can bypass cleanup fixture permissions.');
+            }
+            $failure = null;
+            try {
+                try {
+                    $publisher->apply(ArchiveFormat::Tar);
+                    self::fail('Missing source applied.');
+                } catch (ExtractionException $e) {
+                    $failure = $e;
+                    throw $e;
+                } finally {
+                    $merge->close($failure);
+                }
+            } catch (ExtractionException $e) {
+                self::assertSame($failure, $e);
+                self::assertSame('Staged object changed after merge preflight.', $e->getMessage());
+            }
+            self::assertSame('applied', file_get_contents($destination . '/a'));
+            self::assertDirectoryExists($stage . '/blocked');
+            $next = ExtractionWorkspace::merge($destination);
+            $next->close();
+        } finally {
+            chmod($stage . '/blocked', 0700);
+            $merge->close();
+        }
+    }
+
+    public function testPreflightRejectsUnexpectedStagingObject(): void
+    {
+        $destination = $this->workspace->directory() . '/result';
+        mkdir($destination);
+        $merge = ExtractionWorkspace::merge($destination);
+        $outside = $this->workspace->file('safe');
+        try {
+            file_put_contents($merge->stagingPath() . '/a', 'new');
+            if (!@symlink($outside, $merge->stagingPath() . '/z')) {
+                self::markTestSkipped('Runtime cannot create staging link fixture.');
+            }
+            $publisher = new MergeExtractionPublisher($merge, ExtractionConflictStrategy::Overwrite);
+            try {
+                $publisher->preflight();
+                self::fail('Unexpected staging link accepted.');
+            } catch (ExtractionException) {
+                self::assertSame(['.', '..'], scandir($destination));
+            }
+            try {
+                $publisher->apply(ArchiveFormat::Zip);
+                self::fail('Partial preflight plan applied.');
+            } catch (ExtractionException $e) {
+                self::assertStringContainsString('completed preflight', $e->getMessage());
+            }
+        } finally {
+            $merge->close();
+        }
+        self::assertSame('safe', file_get_contents($outside));
+    }
+
 }
