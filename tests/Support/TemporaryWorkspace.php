@@ -40,13 +40,15 @@ final class TemporaryWorkspace
     public function close(): void
     {
         foreach ($this->files as $file) {
-            if (is_file($file) || is_link($file)) {
+            if (is_link($file)) {
+                $this->removeLink($file);
+            } elseif (is_file($file)) {
                 unlink($file);
             }
         }
         foreach (array_reverse($this->directories) as $directory) {
             if (is_link($directory)) {
-                unlink($directory);
+                $this->removeLink($directory);
                 continue;
             }
             if (!is_dir($directory)) {
@@ -59,12 +61,7 @@ final class TemporaryWorkspace
                 }
                 $path = $item->getPathname();
                 if ($item->isLink()) {
-                    clearstatcache(true, $path);
-                    if (PHP_OS_FAMILY === 'Windows' && is_dir($path)) {
-                        rmdir($path);
-                    } else {
-                        unlink($path);
-                    }
+                    $this->removeLink($path);
                     continue;
                 }
                 if ($item->isDir()) {
@@ -77,5 +74,18 @@ final class TemporaryWorkspace
         }
         $this->files = [];
         $this->directories = [];
+    }
+
+    private function removeLink(string $path): void
+    {
+        if (@unlink($path)) {
+            return;
+        }
+        // Only known links reach this fallback; rmdir removes the Windows
+        // directory-link representation without traversing its target.
+        if (PHP_OS_FAMILY === 'Windows' && @rmdir($path)) {
+            return;
+        }
+        throw new RuntimeException('Cannot remove test fixture link: ' . $path);
     }
 }

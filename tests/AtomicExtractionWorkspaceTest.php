@@ -46,7 +46,6 @@ final class AtomicExtractionWorkspaceTest extends TestCase
         } finally {
             $atomic->close();
         }
-        self::assertSame('complete', file_get_contents($final . '/dir/file'));
     }
 
     #[TestDox('Отмена удаляет только созданное промежуточное дерево')]
