@@ -1,9 +1,9 @@
-# 压缩包检查
+# 归档检查
 
-本指南说明如何在解压前检查压缩包、如何读取结果，以及普通的限制违规与压缩包文件本身错误之间的区别。
+本指南说明如何在解压前检查归档文件、如何读取结果，以及普通的限制违规与归档文件文件本身错误之间的区别。
 
 [`ArchiveGuard::inspect()`](../../src/ArchiveGuard.php) 不会向磁盘提取任何内容。
-它只分析压缩包并返回 [`InspectionResult`](../../src/InspectionResult.php)。
+它只分析归档文件并返回 [`InspectionResult`](../../src/InspectionResult.php)。
 
 ## 基本场景
 
@@ -16,7 +16,7 @@ use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 
 $archivePath = '/path/to/archive.zip';
 
-// 请根据应用实际处理的压缩包和可用资源设置限制。
+// 请根据应用实际处理的归档文件和可用资源设置限制。
 $policy = new ArchivePolicy(
     maxArchiveBytes: 50_000_000,
     maxEntries: 1_000,
@@ -28,7 +28,7 @@ try {
     $result = new ArchiveGuard()->inspect($archivePath, $policy);
 
     if ($result->isAccepted()) {
-        echo '压缩包已通过检查。' . PHP_EOL;
+        echo '归档文件已通过检查。' . PHP_EOL;
     } else {
         foreach ($result->violations() as $violation) {
             // code 表示拒绝原因，message 提供对应的文字说明。
@@ -36,7 +36,7 @@ try {
         }
     }
 } catch (ArchiveOpenException $e) {
-    echo '无法读取压缩包：' . $e->getMessage() . PHP_EOL;
+    echo '无法读取归档文件：' . $e->getMessage() . PHP_EOL;
 }
 ```
 
@@ -44,8 +44,8 @@ try {
 
 [`ArchivePolicy`](../../src/ArchivePolicy.php) 定义的是**允许的最大值**，而不是必须精确匹配的期望值：
 
-- `maxArchiveBytes` — 压缩包文件本身的最大大小；
-- `maxEntries` — 压缩包内文件和文件夹的最大数量；对于 TAR，一些格式元数据元素也计入同一限制；
+- `maxArchiveBytes` — 归档文件本身的最大大小；
+- `maxEntries` — 归档文件内文件和文件夹的最大数量；对于 TAR，一些格式元数据元素也计入同一限制；
 - `maxEntryUncompressedBytes` — 单个文件解压后的最大大小；
 - `maxTotalUncompressedBytes` — 解压数据的最大总量；
 - `maxCompressionRatio` — 可选的“解压后大小与压缩后大小之比”额外上限。
@@ -61,10 +61,10 @@ try {
 [`InspectionResult`](../../src/InspectionResult.php) 提供三个主要方法：
 
 - `format()` — 检测到的格式：`zip`、`tar` 或 `tar.gz`；
-- `isAccepted()` — 压缩包是否通过全部检查；
-- `violations()` — 压缩包被拒绝的原因列表。
+- `isAccepted()` — 归档文件是否通过全部检查；
+- `violations()` — 归档文件被拒绝的原因列表。
 
-即使 `isAccepted()` 返回 `false`，压缩包本身仍可能在结构上有效。例如，它可能包含过大的文件，
+即使 `isAccepted()` 返回 `false`，归档文件本身仍可能在结构上有效。例如，它可能包含过大的文件，
 或者包含策略不允许提取的符号链接。
 
 每个 [`Violation`](../../src/Violation.php) 包含：
@@ -77,8 +77,8 @@ try {
 
 ## 打开和结构错误
 
-[`ArchiveOpenException`](../../src/Exception/ArchiveOpenException.php) 并不表示压缩包违反了所选策略，
-而是表示无法正确读取压缩包。
+[`ArchiveOpenException`](../../src/Exception/ArchiveOpenException.php) 并不表示归档文件违反了所选策略，
+而是表示无法正确读取归档文件。
 
 主要情况：
 
@@ -110,7 +110,7 @@ try {
 
 会检查：
 
-- 压缩包文件大小；
+- 归档文件文件大小；
 - 文件、文件夹以及计入限制的格式元数据元素数量；
 - 单个文件解压后的大小；
 - 解压数据总量；
@@ -124,6 +124,6 @@ try {
 `isAccepted()` 为 `false`。当前版本不会请求密码，也不会提取加密内容。
 
 TAR 和 TAR.GZ 仅支持已实现的普通头部以及 GNU/PAX 扩展集合。
-详情请参阅[支持的压缩包格式](../reference/supported-archives_zh.md)。
+详情请参阅[支持的归档格式](../reference/supported-archives_zh.md)。
 
 [← 返回 README](../readme/README_zh.md)

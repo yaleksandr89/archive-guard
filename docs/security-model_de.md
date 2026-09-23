@@ -137,7 +137,7 @@ Die genaue Liste der Einschränkungen steht in der
 
 - wähle `ArchivePolicy`-Grenzen passend zu den realen Archivgrößen deiner Anwendung;
 - verwende für jeden Extraktionsvorgang ein separates leeres Unterverzeichnis;
-- erlaube nicht vertrauenswürdigen Prozessen nicht, dieses Verzeichnis gleichzeitig zu ändern;
+- verhindere, dass nicht vertrauenswürdige Prozesse dieses Verzeichnis gleichzeitig ändern;
 - behandle Prüfverstöße, Öffnungsfehler und Schreibfehler getrennt;
 - wenn die Anwendung ein temporäres Verzeichnis selbst erstellt und vollständig besitzt, kann
   sie es nach einer fehlgeschlagenen Extraktion nach ihren eigenen Regeln löschen.

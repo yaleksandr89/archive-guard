@@ -24,7 +24,7 @@ $policy = new ArchivePolicy(
 
 | Parámetro | Qué limita | Valor permitido |
 | --- | --- | --- |
-| `maxArchiveBytes` | Tamaño máximo del propio archivo comprimido | Entero mayor que cero |
+| `maxArchiveBytes` | Tamaño máximo del propio archivo | Entero mayor que cero |
 | `maxEntries` | Cantidad máxima de archivos y carpetas en el archivo; en TAR, algunos elementos de metadatos del formato entran en el mismo límite | Entero mayor que cero |
 | `maxEntryUncompressedBytes` | Tamaño máximo de un archivo u otro elemento después de descomprimir | Entero mayor que cero |
 | `maxTotalUncompressedBytes` | Volumen máximo total de datos descomprimidos | Entero mayor que cero |
@@ -77,7 +77,7 @@ Para condiciones en el código, usa `code` en lugar de comparar el texto de `mes
 | `symlink_entry` | Se encontró un enlace simbólico en el archivo |
 | `hardlink_entry` | Se encontró un enlace duro en TAR |
 | `special_entry` | Se encontró un objeto especial, por ejemplo un dispositivo |
-| `archive_too_large` | El tamaño del archivo comprimido supera `maxArchiveBytes` |
+| `archive_too_large` | El tamaño del archivo supera `maxArchiveBytes` |
 | `too_many_entries` | La cantidad de archivos, carpetas y elementos de metadatos contabilizados supera `maxEntries` |
 | `entry_too_large` | Un archivo u otro elemento supera `maxEntryUncompressedBytes` después de descomprimir |
 | `total_size_exceeded` | El volumen total descomprimido supera `maxTotalUncompressedBytes` |

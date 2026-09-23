@@ -46,7 +46,7 @@ try {
 [`ArchivePolicy`](../../src/ArchivePolicy.php) define **límites máximos permitidos**, no valores
 exactos esperados:
 
-- `maxArchiveBytes` — tamaño máximo del propio archivo comprimido;
+- `maxArchiveBytes` — tamaño máximo del propio archivo;
 - `maxEntries` — cantidad máxima de archivos y carpetas en su interior; en TAR, algunos
   elementos de metadatos del formato también cuentan dentro de este límite;
 - `maxEntryUncompressedBytes` — tamaño máximo de un archivo tras la descompresión;
@@ -118,7 +118,7 @@ objetos especiales y funciones del formato no compatibles se devuelven como infr
 
 Se comprueban:
 
-- tamaño del archivo comprimido;
+- tamaño del archivo;
 - cantidad de archivos, carpetas y elementos de metadatos del formato contabilizados;
 - tamaño de un archivo tras la descompresión;
 - volumen total de datos descomprimidos;

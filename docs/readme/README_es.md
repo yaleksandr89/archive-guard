@@ -17,7 +17,7 @@ descomprimirlos y extraer archivos con límites definidos de antemano.
 
 ## Para qué sirve el paquete
 
-Si una aplicación recibe un archivo comprimido de un usuario o de un servicio externo,
+Si una aplicación recibe un archivo ZIP, TAR o TAR.GZ de un usuario o de un servicio externo,
 conviene comprobar antes de descomprimir que no contiene rutas peligrosas, enlaces ni
 elementos no compatibles, y que su tamaño y el volumen de datos descomprimidos se mantienen
 dentro de los límites permitidos por la aplicación.
@@ -31,7 +31,7 @@ recibe una causa concreta.
 - detecta el formato por el contenido del archivo, no por la extensión del nombre;
 - comprueba las rutas internas y evita que salgan del directorio de destino;
 - rechaza enlaces simbólicos, enlaces duros, objetos especiales y elementos no compatibles;
-- limita el tamaño máximo del archivo comprimido, la cantidad de archivos y carpetas que
+- limita el tamaño máximo del archivo, la cantidad de archivos y carpetas que
   contiene y el volumen total de datos tras la descompresión;
 - devuelve una lista estructurada de infracciones que la aplicación puede procesar;
 - permite comprobar un archivo con `inspect()` o comprobarlo y extraerlo con `extract()`;
@@ -136,7 +136,7 @@ del destino y el comportamiento ante errores se describen en la
 [`ArchivePolicy`](../../src/ArchivePolicy.php) define límites superiores a partir de los
 cuales se rechaza el archivo:
 
-- tamaño máximo del archivo comprimido;
+- tamaño máximo del archivo;
 - cantidad máxima de archivos y carpetas en su interior; en TAR, algunos elementos de
   metadatos del formato también cuentan dentro de este límite;
 - tamaño máximo de un solo archivo tras la descompresión;
@@ -216,7 +216,7 @@ Durante la extracción hay varias condiciones importantes:
   La versión actual no descomprime sobre archivos ya existentes.
 - **No se sustituye un archivo o directorio existente.** Si durante la extracción aparece
   un objeto en la ruta necesaria, la operación falla en lugar de sobrescribirlo.
-- **No se restauran permisos, propietario ni fecha de modificación del archivo comprimido.**
+- **No se restauran permisos, propietario ni fecha de modificación almacenados en el archivo.**
   Se extraen el contenido de los archivos y la estructura de directorios; no se aplican los
   metadatos guardados en el archivo.
 - **Windows tiene restricciones adicionales para los nombres.** Por ejemplo, Windows no

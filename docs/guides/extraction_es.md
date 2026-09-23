@@ -143,7 +143,7 @@ Por tanto, un mismo archivo puede superar `inspect()` a nivel de formato y ser r
 
 ## Metadatos de archivos
 
-Un archivo comprimido puede guardar no solo el contenido, sino también permisos, propietario
+Un archivo puede guardar no solo el contenido, sino también permisos, propietario
 y fecha de modificación. La versión actual extrae el contenido y la estructura de directorios,
 pero no aplica esos metadatos del archivo.
 

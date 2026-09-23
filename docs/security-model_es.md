@@ -1,6 +1,6 @@
 # Modelo de seguridad
 
-Esta página explica frente a qué problemas habituales al trabajar con archivos comprimidos
+Esta página explica frente a qué problemas habituales al trabajar con archivos
 protege el paquete, qué comprobaciones realiza y qué riesgos debe seguir controlando la
 aplicación.
 
@@ -118,7 +118,7 @@ Usa un directorio independiente al que solo tenga acceso tu aplicación durante 
 
 ### No se restauran permisos ni propietario del archivo
 
-Un archivo comprimido puede contener sus propios permisos, propietario y marcas de tiempo.
+Un archivo puede contener sus propios permisos, propietario y marcas de tiempo.
 La versión actual extrae el contenido y la estructura de directorios, pero no aplica esos
 valores procedentes del archivo.
 
