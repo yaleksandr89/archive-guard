@@ -8,7 +8,8 @@ use Throwable;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
 use Yaleksandr\ArchiveGuard\Internal\ArchiveFormatDetector;
-use Yaleksandr\ArchiveGuard\Internal\Extraction\AtomicExtractionWorkspace;
+use Yaleksandr\ArchiveGuard\Internal\Extraction\ExtractionWorkspace;
+use Yaleksandr\ArchiveGuard\Internal\Extraction\MergeExtractionPublisher;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\TarExtractor;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\ZipExtractor;
 use Yaleksandr\ArchiveGuard\Internal\Inspection\TarInspector;
@@ -32,15 +33,23 @@ final class ArchiveGuard
         if ($size > $policy->maxArchiveBytes) {
             throw new ArchiveRejectedException($this->tooLarge($format));
         }
-        $workspace = match ($options->mode) {
-            ExtractionMode::Atomic => new AtomicExtractionWorkspace($destinationPath),
+        $workspace = match ($options->mode()) {
+            ExtractionMode::Atomic => ExtractionWorkspace::atomic($destinationPath),
+            ExtractionMode::Merge => ExtractionWorkspace::merge($destinationPath),
         };
         $failure = null;
         try {
             $result = $format === ArchiveFormat::Zip
                 ? new ZipExtractor()->extract($archivePath, $workspace->stagingPath(), $policy)
                 : new TarExtractor()->extract($archivePath, $workspace->stagingPath(), $policy, $format, $size);
-            $workspace->publish();
+            $strategy = $options->conflictStrategy();
+            if ($strategy !== null) {
+                $publisher = new MergeExtractionPublisher($workspace, $strategy);
+                $publisher->preflight();
+                $result = $publisher->apply($format);
+            } else {
+                $workspace->publish();
+            }
             return $result;
         } catch (Throwable $e) {
             $failure = $e;

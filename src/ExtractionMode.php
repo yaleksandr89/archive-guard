@@ -7,4 +7,5 @@ namespace Yaleksandr\ArchiveGuard;
 enum ExtractionMode
 {
     case Atomic;
+    case Merge;
 }

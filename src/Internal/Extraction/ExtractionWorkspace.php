@@ -8,20 +8,34 @@ use Error;
 use Exception;
 use Throwable;
 use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
+use Yaleksandr\ArchiveGuard\ExtractionMode;
 
 /**
  * @internal
  * Cooperative locking only: unrelated filesystem mutations remain possible.
  * Publish is a same-parent rename, without crash durability/fsync guarantees.
  */
-final class AtomicExtractionWorkspace
+final class ExtractionWorkspace
 {
     private readonly string $destination;
     private ?string $staging = null;
     /** @var resource|null */
     private $lock = null;
 
-    public function __construct(string $destination)
+    /** @var array{dev: int, ino: int}|null */
+    private ?array $rootIdentity = null;
+
+    public static function atomic(string $destination): self
+    {
+        return new self($destination, ExtractionMode::Atomic);
+    }
+
+    public static function merge(string $destination): self
+    {
+        return new self($destination, ExtractionMode::Merge);
+    }
+
+    private function __construct(string $destination, private readonly ExtractionMode $mode)
     {
         if ($destination === '' || str_contains($destination, "\0") || str_contains($destination, '://')
             || str_starts_with($destination, '//') || str_starts_with($destination, '\\\\')
@@ -36,7 +50,7 @@ final class AtomicExtractionWorkspace
         $path = rtrim($path, '/');
         $name = basename($path);
         if ($name === '' || $name === '.' || $name === '..') {
-            throw new ExtractionException('Destination must name a new directory.');
+            throw new ExtractionException('Destination must name a directory.');
         }
         if (PHP_OS_FAMILY === 'Windows' && (preg_match('//u', $name) !== 1
             || preg_match('/[<>:"|?*\x00-\x1f]/', $name) === 1
@@ -55,7 +69,7 @@ final class AtomicExtractionWorkspace
         if ($name === '.archive-guard-locks') {
             throw new ExtractionException('Destination name is reserved for archive-guard internal locking.');
         }
-        $this->assertDestinationAbsent($namespace);
+        $this->assertDestination($namespace);
         clearstatcache(true, $namespace);
         if (@lstat($namespace) === false) {
             // Another cooperating operation may create the namespace concurrently.
@@ -66,7 +80,7 @@ final class AtomicExtractionWorkspace
         if ($namespaceStat === false || ($namespaceStat['mode'] & 0170000) !== 0040000) {
             throw new ExtractionException('Lock namespace must be an actual non-link directory.');
         }
-        $this->assertDestinationAbsent($namespace);
+        $this->assertDestination($namespace);
         // Preserve the whole basename, without a prefix/suffix or case folding:
         // native filename equivalence determines which operations share a lock.
         $lockPath = $namespace . DIRECTORY_SEPARATOR . $name;
@@ -84,7 +98,7 @@ final class AtomicExtractionWorkspace
             if (!@flock($lock, LOCK_EX | LOCK_NB)) {
                 throw new ExtractionException('Destination is locked by another extraction.');
             }
-            $this->assertDestinationAbsent();
+            $this->assertDestination();
             $staging = $prefix . '.archive-guard-stage-' . bin2hex(random_bytes(16));
             if (!@mkdir($staging, 0700)) {
                 throw new ExtractionException('Cannot create sibling staging directory.');
@@ -96,7 +110,7 @@ final class AtomicExtractionWorkspace
                 throw $e;
             }
             // Includes Random\RandomException from staging-name generation.
-            throw new ExtractionException('Cannot initialize atomic extraction workspace.', previous: $e);
+            throw new ExtractionException('Cannot initialize extraction workspace.', previous: $e);
         } catch (Error $e) {
             // A failed constructor has no destructor cleanup; preserve the defect.
             $this->close($e);
@@ -114,8 +128,11 @@ final class AtomicExtractionWorkspace
 
     public function publish(): void
     {
+        if ($this->mode !== ExtractionMode::Atomic) {
+            throw new ExtractionException('Only Atomic workspaces can publish staging wholesale.');
+        }
         $staging = $this->stagingPath();
-        $this->assertDestinationAbsent();
+        $this->assertDestination();
         // PHP has no portable renameat2(RENAME_NOREPLACE). The lock coordinates
         // package operations; the check/rename gap is not hostile-race protection.
         if (!@rename($staging, $this->destination)) {
@@ -162,11 +179,20 @@ final class AtomicExtractionWorkspace
         }
     }
 
-    private function assertDestinationAbsent(?string $namespace = null): void
+    public function mergeDestination(): string
+    {
+        if ($this->mode !== ExtractionMode::Merge) {
+            throw new ExtractionException('Merge requires a Merge workspace.');
+        }
+        $this->assertDestination();
+        return $this->destination;
+    }
+
+    private function assertDestination(?string $namespace = null): void
     {
         clearstatcache(true, $this->destination);
         $destinationStat = @lstat($this->destination);
-        if ($destinationStat === false) {
+        if ($destinationStat === false && $this->mode === ExtractionMode::Atomic) {
             return;
         }
         if ($namespace !== null) {
@@ -174,13 +200,25 @@ final class AtomicExtractionWorkspace
             $namespaceStat = @lstat($namespace);
             // Compare native object identities, including Windows volume/file IDs;
             // never approximate filesystem name equivalence with string folding.
-            if ($namespaceStat !== false && $namespaceStat['ino'] !== 0
+            if ($destinationStat !== false && $namespaceStat !== false && $namespaceStat['ino'] !== 0
                 && $destinationStat['dev'] === $namespaceStat['dev']
                 && $destinationStat['ino'] === $namespaceStat['ino']) {
                 throw new ExtractionException('Destination name is reserved for archive-guard internal locking.');
             }
         }
-        throw new ExtractionException('Final destination must not exist.');
+        if ($this->mode === ExtractionMode::Atomic) {
+            throw new ExtractionException('Final destination must not exist.');
+        }
+        if ($destinationStat === false || ($destinationStat['mode'] & 0170000) !== 0040000
+            || !is_readable($this->destination)
+            || (PHP_OS_FAMILY !== 'Windows' && !is_executable($this->destination))) {
+            throw new ExtractionException('Merge destination must be an existing readable actual directory.');
+        }
+        $identity = ['dev' => $destinationStat['dev'], 'ino' => $destinationStat['ino']];
+        if ($this->rootIdentity !== null && $this->rootIdentity !== $identity) {
+            throw new ExtractionException('Merge destination root changed.');
+        }
+        $this->rootIdentity = $identity;
     }
 
     private static function removeTree(string $path): bool
