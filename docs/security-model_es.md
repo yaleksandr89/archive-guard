@@ -1,6 +1,6 @@
 # Modelo de seguridad
 
-Esta página explica frente a qué problemas habituales al trabajar con archivos
+Esta página explica frente a qué problemas habituales al trabajar con archivos ZIP, TAR y TAR.GZ
 protege el paquete, qué comprobaciones realiza y qué riesgos debe seguir controlando la
 aplicación.
 

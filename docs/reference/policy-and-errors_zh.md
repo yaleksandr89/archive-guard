@@ -71,7 +71,7 @@ $policy = new ArchivePolicy(
 | `symlink_entry` | 归档文件中发现符号链接 |
 | `hardlink_entry` | TAR 中发现硬链接 |
 | `special_entry` | 发现特殊对象，例如设备 |
-| `archive_too_large` | 归档文件文件大小超过 `maxArchiveBytes` |
+| `archive_too_large` | 归档文件大小超过 `maxArchiveBytes` |
 | `too_many_entries` | 文件、文件夹以及计入限制的格式元数据元素数量超过 `maxEntries` |
 | `entry_too_large` | 单个文件或其他元素解压后超过 `maxEntryUncompressedBytes` |
 | `total_size_exceeded` | 解压数据总量超过 `maxTotalUncompressedBytes` |
