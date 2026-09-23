@@ -311,15 +311,19 @@ final class ArchiveGuardExtractionTest extends TestCase
             }
         }
         $link = $destination . '/link';
+
         if (!@symlink($destination, $link)) {
             self::markTestSkipped('Runtime cannot create the merge root symlink fixture.');
         }
-        try {
-            $guard->extract($source, $link, $this->policy(), $options);
-            self::fail('Merge root link accepted.');
-        } catch (ExtractionException) {
-            self::assertSame('safe', file_get_contents($destination . '/keep'));
-        }
+
+        $this->expectException(ExtractionException::class);
+
+        $guard->extract(
+            $source,
+            $link,
+            $this->policy(),
+            $options,
+        );
     }
 
     #[RequiresOperatingSystemFamily('Linux')]
