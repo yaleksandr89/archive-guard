@@ -6,6 +6,12 @@
 
 ![Archive Guard — проверка и извлечение ZIP, TAR и TAR.GZ для PHP](docs/assets/archive-guard-readme-cover.png)
 
+## Выберите язык
+
+| Русский | English | Español | 中文 | Français | Deutsch |
+|---|---|---|---|---|---|
+| **Выбран** | [English](./docs/readme/README_en.md) | [Español](./docs/readme/README_es.md) | [中文](./docs/readme/README_zh.md) | [Français](./docs/readme/README_fr.md) | [Deutsch](./docs/readme/README_de.md) |
+
 Archive Guard — PHP-библиотека для проверки ZIP, TAR и TAR.GZ перед распаковкой
 и извлечения файлов с заранее заданными ограничениями.
 
