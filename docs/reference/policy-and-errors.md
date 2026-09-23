@@ -1,72 +1,133 @@
 # Политика, нарушения и ошибки
 
+Этот справочник описывает параметры проверки, результат `inspect()`, коды нарушений
+и исключения, которые приложение может получить при работе с Archive Guard.
+
 ## ArchivePolicy
 
-`ArchivePolicy` задаётся при каждом вызове `inspect()` или `extract()`:
+[`ArchivePolicy`](../../src/ArchivePolicy.php) передаётся в каждый вызов `inspect()` или
+`extract()` и задаёт **максимально допустимые**, а не ожидаемые точные значения.
 
-```text
-ArchivePolicy::__construct(
-    int $maxArchiveBytes,
-    int $maxEntries,
-    int $maxEntryUncompressedBytes,
-    int $maxTotalUncompressedBytes,
-    ?float $maxCompressionRatio = null,
-)
+```php
+<?php
+
+use Yaleksandr\ArchiveGuard\ArchivePolicy;
+
+$policy = new ArchivePolicy(
+    maxArchiveBytes: 50_000_000,
+    maxEntries: 1_000,
+    maxEntryUncompressedBytes: 10_000_000,
+    maxTotalUncompressedBytes: 100_000_000,
+    maxCompressionRatio: 100.0,
+);
 ```
 
-| Параметр | Тип | Назначение | Требование |
-| --- | --- | --- | --- |
-| `maxArchiveBytes` | `int` | Максимальный размер файла архива в байтах | Обязателен, больше нуля |
-| `maxEntries` | `int` | Максимальное число записей | Обязателен, больше нуля |
-| `maxEntryUncompressedBytes` | `int` | Максимальный распакованный размер одной записи в байтах | Обязателен, больше нуля |
-| `maxTotalUncompressedBytes` | `int` | Максимальная сумма распакованных размеров в байтах | Обязателен, больше нуля |
-| `maxCompressionRatio` | `?float` | Необязательный порог отношения сжатия | `null` либо конечное число больше нуля |
+| Параметр | Что ограничивает | Допустимое значение |
+| --- | --- | --- |
+| `maxArchiveBytes` | Максимальный размер самого файла архива | Целое число больше нуля |
+| `maxEntries` | Максимальное количество записей внутри архива: файлов, каталогов и учитываемых служебных записей формата | Целое число больше нуля |
+| `maxEntryUncompressedBytes` | Максимальный размер одного файла или записи после распаковки | Целое число больше нуля |
+| `maxTotalUncompressedBytes` | Максимальный суммарный объём распакованных данных | Целое число больше нуля |
+| `maxCompressionRatio` | Дополнительный предел отношения распакованного размера к сжатому | `null` или конечное число больше нуля |
 
-Для четырёх ресурсных лимитов значений по умолчанию нет. Недопустимые значения конструктора вызывают `InvalidArgumentException`. Порог отношения сжатия по умолчанию равен `null`, то есть соответствующая эвристика выключена. Указанный порог не является универсально безопасным значением; выбирайте его для своего сценария.
+У первых четырёх параметров нет значений по умолчанию: приложение должно выбрать их само.
+`maxCompressionRatio` необязателен и по умолчанию равен `null`.
+
+Проверка отношения сжатия работает по-разному:
+
+- для ZIP используются размеры из метаданных записи;
+- для TAR.GZ учитывается фактический объём данных, который выдаёт GZIP-декомпрессор;
+- для обычного TAR этот предел не применяется.
+
+Неверные значения конструктора вызывают стандартный `InvalidArgumentException`.
 
 ## InspectionResult
 
-`format(): ArchiveFormat` возвращает `zip`, `tar` или `tar.gz`. `isAccepted(): bool` истинно, если нарушений нет. `violations(): array` возвращает список объектов `Violation`. При ошибке открытия или структуры архива результат не создаётся: вызывается `ArchiveOpenException`.
+[`InspectionResult`](../../src/InspectionResult.php) возвращается только тогда, когда
+источник удалось открыть и разобрать как поддерживаемый архив.
+
+Доступные методы:
+
+- `format()` — возвращает [`ArchiveFormat`](../../src/ArchiveFormat.php): `zip`, `tar`
+  или `tar.gz`;
+- `isAccepted()` — возвращает `true`, если нарушений нет;
+- `violations()` — возвращает список объектов [`Violation`](../../src/Violation.php).
+
+Если файл нельзя открыть, распознать или корректно разобрать, вместо результата возникает
+`ArchiveOpenException`.
 
 ## Violation
 
-Публичные свойства `Violation`: `code: ViolationCode`, `message: string`, `entryName: ?string`. `entryName` может быть `null` для нарушения, не связанного с конкретной записью. Для программной обработки используйте `code`; `message` служит диагностическим описанием.
+[`Violation`](../../src/Violation.php) содержит три публичных свойства:
+
+- `code` — значение [`ViolationCode`](../../src/ViolationCode.php), предназначенное для
+  программной обработки;
+- `message` — короткое диагностическое описание;
+- `entryName` — имя записи внутри архива или `null`, если нарушение относится ко всему
+  архиву.
+
+Для условий в коде лучше использовать `code`, а не сравнивать текст `message`.
 
 ## ViolationCode
 
-| Значение | Смысл |
+| Значение | Что означает |
 | --- | --- |
-| `unsafe_path` | Небезопасный путь записи |
-| `path_collision` | Совпадение нормализованных путей или конфликт файла и каталога |
-| `symlink_entry` | Символическая ссылка |
-| `hardlink_entry` | Жёсткая ссылка TAR |
-| `special_entry` | Специальный объект, например устройство |
-| `archive_too_large` | Файл архива превышает `maxArchiveBytes` |
-| `too_many_entries` | Число записей превышает `maxEntries` |
-| `entry_too_large` | Распакованный размер записи превышает `maxEntryUncompressedBytes` |
-| `total_size_exceeded` | Сумма распакованных размеров превышает `maxTotalUncompressedBytes` |
-| `compression_ratio_exceeded` | Превышен заданный порог отношения сжатия |
-| `encrypted_entry` | Зашифрованная запись ZIP |
-| `unsupported_compression` | Метод сжатия ZIP не поддерживается для распаковки |
-| `unsupported_feature` | Неподдерживаемая возможность архива или записи |
+| `unsafe_path` | Путь записи может выйти за допустимую структуру каталога или содержит недопустимую форму |
+| `path_collision` | Две записи после нормализации указывают на один путь или конфликтуют как файл и каталог |
+| `symlink_entry` | В архиве обнаружена символическая ссылка |
+| `hardlink_entry` | В TAR обнаружена жёсткая ссылка |
+| `special_entry` | Обнаружен специальный объект, например устройство |
+| `archive_too_large` | Размер файла архива превышает `maxArchiveBytes` |
+| `too_many_entries` | Количество записей внутри архива превышает `maxEntries` |
+| `entry_too_large` | Одна запись после распаковки превышает `maxEntryUncompressedBytes` |
+| `total_size_exceeded` | Общий объём распакованных данных превышает `maxTotalUncompressedBytes` |
+| `compression_ratio_exceeded` | Превышен заданный предел отношения распакованного размера к сжатому |
+| `encrypted_entry` | ZIP содержит зашифрованную запись; текущая версия не запрашивает пароль |
+| `unsupported_compression` | Метод сжатия ZIP не поддерживается средой для распаковки |
+| `unsupported_feature` | Архив использует возможность формата, которую Archive Guard не поддерживает |
 
-Не каждый код привязан к имени записи. Например, `archive_too_large`, `too_many_entries` и некоторые нарушения возможностей формата могут иметь `entryName === null`.
+`entryName` есть не у каждого нарушения. Например, превышение размера всего архива относится
+к архиву целиком, поэтому имя отдельной записи там отсутствует.
 
 ## Исключения
 
-| Класс | Наследование | Когда возникает |
-| --- | --- | --- |
-| `ArchiveGuardException` | `RuntimeException` | Общий базовый класс исключений пакета |
-| `ArchiveOpenException` | `ArchiveGuardException` | Источник нельзя открыть, распознать или корректно разобрать |
-| `ArchiveRejectedException` | `ArchiveGuardException` | `extract()` отклонил архив при проверке политики или записей до записи |
-| `ExtractionException` | `ArchiveGuardException` | Ошибка каталога назначения, целевого пути или выполнения извлечения |
+Все исключения пакета наследуются от
+[`ArchiveGuardException`](../../src/Exception/ArchiveGuardException.php), который, в свою
+очередь, наследуется от `RuntimeException`.
 
-`ArchiveRejectedException::inspectionResult(): InspectionResult` возвращает результат с нарушениями. Во время выполнения извлечения, в том числе при повторном проходе TAR, может возникнуть `ExtractionException`. `InvalidArgumentException` при неверных параметрах `ArchivePolicy` относится к стандартным исключениям PHP и не наследует `ArchiveGuardException`.
+- [`ArchiveOpenException`](../../src/Exception/ArchiveOpenException.php) — исходный файл
+  нельзя открыть, формат не распознан или структура архива повреждена.
+- [`ArchiveRejectedException`](../../src/Exception/ArchiveRejectedException.php) —
+  `extract()` повторно проверил архив и отклонил его до начала записи. Метод
+  `inspectionResult()` возвращает причины отклонения.
+- [`ExtractionException`](../../src/Exception/ExtractionException.php) — проблема с
+  каталогом назначения, целевым путём или выполнением записи.
+
+`InvalidArgumentException` при неверных значениях `ArchivePolicy` является стандартным
+исключением PHP и не наследует `ArchiveGuardException`.
 
 ## Как различать результат и исключение
 
-При `inspect()` сначала обрабатывайте `ArchiveOpenException`; получив `InspectionResult`, проверяйте `isAccepted()` и `violations()`. При `extract()` отдельно обрабатывайте отклонение архива через `ArchiveRejectedException`, ошибки открытия через `ArchiveOpenException` и ошибки назначения или записи через `ExtractionException`. Не считайте все неудачи результатом с `isAccepted() === false`.
+### `inspect()`
 
-## См. также
+- Если архив удалось прочитать и он прошёл проверки, метод возвращает `InspectionResult`
+  с `isAccepted() === true`.
+- Если архив удалось прочитать, но найдены нарушения, метод всё равно возвращает
+  `InspectionResult`, однако `isAccepted()` будет `false`, а причины находятся в
+  `violations()`.
+- Если сам файл нельзя открыть или корректно разобрать, возникает `ArchiveOpenException`.
 
-[Проверка архива](../guides/inspection.md) · [Управляемое извлечение](../guides/extraction.md) · [Модель безопасности](../security-model.md) · [README](../../README.md)
+### `extract()`
+
+- Если архив не проходит повторную проверку, возникает `ArchiveRejectedException`.
+  Получить список нарушений можно через `inspectionResult()`.
+- Если исходный файл нельзя открыть или распознать до начала извлечения, возникает
+  `ArchiveOpenException`.
+- Если проблема возникает при подготовке назначения или уже во время записи, возникает
+  `ExtractionException`.
+- При успешном завершении возвращается [`ExtractionResult`](../../src/ExtractionResult.php).
+
+Практические примеры есть в руководствах по
+[`inspect()`](../guides/inspection.md) и [`extract()`](../guides/extraction.md).
+
+[← Вернуться в README](../../README.md)
