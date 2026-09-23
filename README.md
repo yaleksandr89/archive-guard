@@ -4,6 +4,8 @@
 [![CI](https://github.com/yaleksandr89/archive-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/yaleksandr89/archive-guard/actions/workflows/ci.yml)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-777BB4.svg?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 
+![OAuth2 Yandex — Yandex ID provider client for league/oauth2-client](docs/assets/archive-guard-readme-cover.png)
+
 Archive Guard — PHP-библиотека для проверки ZIP, TAR и TAR.GZ перед распаковкой
 и извлечения файлов с заранее заданными ограничениями.
 
