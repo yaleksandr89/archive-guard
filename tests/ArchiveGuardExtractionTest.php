@@ -12,6 +12,8 @@ use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
 use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
+use Yaleksandr\ArchiveGuard\ExtractionMode;
+use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TarFixtureFactory as Tar;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory as Zip;
@@ -42,8 +44,8 @@ final class ArchiveGuardExtractionTest extends TestCase
     public function testNestedExtraction(ArchiveFormat $format): void
     {
         $path = $this->source($format, false);
-        $destination = $this->workspace->directory();
-        $result = new ArchiveGuard()->extract($path, $destination, $this->policy());
+        $destination = $this->workspace->directory() . '/result';
+        $result = new ArchiveGuard()->extract($path, $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
         self::assertSame($format, $result->format());
         self::assertSame(2, $result->filesExtracted());
         self::assertSame(2, $result->directoriesCreated());
@@ -53,11 +55,11 @@ final class ArchiveGuardExtractionTest extends TestCase
     }
 
     #[DataProvider('formats')]
-    #[TestDox('Пустой архив извлекается без созданных объектов')]
+    #[TestDox('Пустой архив публикует пустой конечный каталог')]
     public function testEmptyExtraction(ArchiveFormat $format): void
     {
-        $destination = $this->workspace->directory();
-        $result = new ArchiveGuard()->extract($this->source($format, true), $destination, $this->policy());
+        $destination = $this->workspace->directory() . '/result';
+        $result = new ArchiveGuard()->extract($this->source($format, true), $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
         self::assertSame($format, $result->format());
         self::assertSame(0, $result->filesExtracted());
         self::assertSame(0, $result->directoriesCreated());
@@ -72,15 +74,17 @@ final class ArchiveGuardExtractionTest extends TestCase
         $source = $this->source($format, false);
         $guard = new ArchiveGuard();
         $file = $this->workspace->file('existing');
+        $empty = $this->workspace->directory();
         $nonempty = $this->workspace->directory();
         file_put_contents($nonempty . '/keep', 'keep');
-        foreach ([$file . '-absent', $file, $nonempty, 'php://memory', $nonempty . "\0bad"] as $destination) {
+        foreach ([$file . '/result', $nonempty . '/missing/result', $file, $nonempty, $empty, '', '.', '..', '//server/share/result', '\\\\server\\share\\result', 'php://memory', 'file://' . $nonempty . '/result', $nonempty . "\0bad"] as $destination) {
             try {
-                $guard->extract($source, $destination, $this->policy());
+                $guard->extract($source, $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
                 self::fail('Invalid destination accepted.');
             } catch (ExtractionException) {
                 self::assertSame('keep', file_get_contents($nonempty . '/keep'));
                 self::assertSame('existing', file_get_contents($file));
+                self::assertSame(['.', '..'], scandir($empty));
             }
         }
     }
@@ -94,38 +98,62 @@ final class ArchiveGuardExtractionTest extends TestCase
             self::markTestSkipped('Runtime cannot create symlink fixture.');
         }
         $this->expectException(ExtractionException::class);
-        new ArchiveGuard()->extract($this->source(ArchiveFormat::Zip, false), $link, $this->policy());
+        new ArchiveGuard()->extract($this->source(ArchiveFormat::Zip, false), $link, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
     }
 
     #[DataProvider('formats')]
-    #[TestDox('Отклонённый архив оставляет назначение пустым и сохраняет результат проверки')]
+    #[TestDox('Отклонённый архив не публикует назначение и сохраняет результат проверки')]
     public function testRejectedArchive(ArchiveFormat $format): void
     {
         $source = $format === ArchiveFormat::Zip
             ? Zip::create($this->workspace, [['name' => '../bad']])
             : $this->workspace->file($format === ArchiveFormat::Tar ? Tar::archive(Tar::record('../bad')) : Tar::gzip(Tar::archive(Tar::record('../bad'))));
-        $destination = $this->workspace->directory();
+        $destination = $this->workspace->directory() . '/result';
         try {
-            new ArchiveGuard()->extract($source, $destination, $this->policy());
+            new ArchiveGuard()->extract($source, $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
             self::fail('Unsafe archive accepted.');
         } catch (ArchiveRejectedException $e) {
             self::assertSame(ViolationCode::UnsafePath, $e->inspectionResult()->violations()[0]->code);
             self::assertSame($format, $e->inspectionResult()->format());
-            self::assertSame(['.', '..'], scandir($destination));
+            self::assertFalse(file_exists($destination));
+            self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
         }
     }
 
     #[TestDox('Превышение размера источника возвращает отклонение до записи')]
     public function testSourceLimitRejection(): void
     {
-        $destination = $this->workspace->directory();
+        $destination = $this->workspace->directory() . '/result';
         try {
-            new ArchiveGuard()->extract($this->source(ArchiveFormat::Zip, false), $destination, new ArchivePolicy(1, 10, 100, 100));
+            new ArchiveGuard()->extract($this->source(ArchiveFormat::Zip, false), $destination, new ArchivePolicy(1, 10, 100, 100), new ExtractionOptions(ExtractionMode::Atomic));
             self::fail('Oversize source accepted.');
         } catch (ArchiveRejectedException $e) {
             self::assertSame(ViolationCode::ArchiveTooLarge, $e->inspectionResult()->violations()[0]->code);
-            self::assertSame(['.', '..'], scandir($destination));
+            self::assertFalse(file_exists($destination));
         }
+    }
+
+    #[TestDox('Имя внутреннего пространства блокировок зарезервировано, остальные имена с префиксом разрешены')]
+    public function testReservedLockNamespace(): void
+    {
+        $parent = $this->workspace->directory();
+        $guard = new ArchiveGuard();
+        $source = $this->source(ArchiveFormat::Zip, false);
+        $options = new ExtractionOptions(ExtractionMode::Atomic);
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            try {
+                $guard->extract($source, $parent . '/.archive-guard-locks', $this->policy(), $options);
+                self::fail('Reserved namespace accepted.');
+            } catch (ExtractionException $e) {
+                self::assertStringContainsString('reserved for archive-guard internal locking', $e->getMessage());
+            }
+            if ($attempt === 0) {
+                self::assertFalse(file_exists($parent . '/.archive-guard-locks'));
+                $guard->extract($source, $parent . '/.archive-guard-other', $this->policy(), $options);
+            }
+        }
+        self::assertSame('abc', file_get_contents($parent . '/.archive-guard-other/a/b/one.txt'));
+        self::assertSame([], glob($parent . '/.archive-guard-stage-*'));
     }
 
     private function source(ArchiveFormat $format, bool $empty): string

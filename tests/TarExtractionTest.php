@@ -11,6 +11,8 @@ use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
+use Yaleksandr\ArchiveGuard\ExtractionMode;
+use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TarFixtureFactory as Tar;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\ViolationCode;
@@ -44,8 +46,8 @@ final class TarExtractionTest extends TestCase
             . Tar::record('pax', Tar::pax(['path' => 'pax/sub/file.txt']), 'x') . Tar::record('../ignored', 'P');
         $bytes = Tar::archive($records);
         $source = $this->workspace->file($gzip ? Tar::gzip($bytes) : $bytes);
-        $destination = $this->workspace->directory();
-        $result = new ArchiveGuard()->extract($source, $destination, $this->policy());
+        $destination = $this->workspace->directory() . '/result';
+        $result = new ArchiveGuard()->extract($source, $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
         self::assertSame($gzip ? ArchiveFormat::TarGz : ArchiveFormat::Tar, $result->format());
         self::assertSame('G', file_get_contents($destination . '/' . $long));
         self::assertSame('P', file_get_contents($destination . '/pax/sub/file.txt'));
@@ -70,15 +72,15 @@ final class TarExtractionTest extends TestCase
     public function testRejectedRecords(string $record, ViolationCode $code): void
     {
         $source = $this->workspace->file(Tar::archive(Tar::record('good', 'ok') . $record));
-        $destination = $this->workspace->directory();
+        $destination = $this->workspace->directory() . '/result';
         $guard = new ArchiveGuard();
         self::assertContains($code, array_map(static fn($v) => $v->code, $guard->inspect($source, $this->policy())->violations()));
         try {
-            $guard->extract($source, $destination, $this->policy());
+            $guard->extract($source, $destination, $this->policy(), new ExtractionOptions(ExtractionMode::Atomic));
             self::fail('Rejected archive extracted.');
         } catch (ArchiveRejectedException $e) {
             self::assertContains($code, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
-            self::assertSame(['.', '..'], scandir($destination));
+            self::assertFalse(file_exists($destination));
         }
     }
 

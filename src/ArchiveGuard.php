@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Yaleksandr\ArchiveGuard;
 
+use Throwable;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
 use Yaleksandr\ArchiveGuard\Internal\ArchiveFormatDetector;
+use Yaleksandr\ArchiveGuard\Internal\Extraction\AtomicExtractionWorkspace;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\TarExtractor;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\ZipExtractor;
 use Yaleksandr\ArchiveGuard\Internal\Inspection\TarInspector;
@@ -24,16 +26,28 @@ final class ArchiveGuard
         return $inspector->inspect($archivePath, $policy, $format, $size);
     }
 
-    public function extract(string $archivePath, string $destinationPath, ArchivePolicy $policy): ExtractionResult
+    public function extract(string $archivePath, string $destinationPath, ArchivePolicy $policy, ExtractionOptions $options): ExtractionResult
     {
         [$format, $size] = $this->source($archivePath);
         if ($size > $policy->maxArchiveBytes) {
             throw new ArchiveRejectedException($this->tooLarge($format));
         }
-        if ($format === ArchiveFormat::Zip) {
-            return new ZipExtractor()->extract($archivePath, $destinationPath, $policy);
+        $workspace = match ($options->mode) {
+            ExtractionMode::Atomic => new AtomicExtractionWorkspace($destinationPath),
+        };
+        $failure = null;
+        try {
+            $result = $format === ArchiveFormat::Zip
+                ? new ZipExtractor()->extract($archivePath, $workspace->stagingPath(), $policy)
+                : new TarExtractor()->extract($archivePath, $workspace->stagingPath(), $policy, $format, $size);
+            $workspace->publish();
+            return $result;
+        } catch (Throwable $e) {
+            $failure = $e;
+            throw $e;
+        } finally {
+            $workspace->close($failure);
         }
-        return new TarExtractor()->extract($archivePath, $destinationPath, $policy, $format, $size);
     }
 
     /** @return array{ArchiveFormat, int} */
