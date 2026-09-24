@@ -13,10 +13,11 @@ use SensitiveParameter;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
-use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
 use Yaleksandr\ArchiveGuard\ExtractionConflictStrategy;
 use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\ZipExtractor;
+use Yaleksandr\ArchiveGuard\Internal\Inspection\ZipInspector;
+use Yaleksandr\ArchiveGuard\Internal\Zip\ZipPayloadReader;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory as Zip;
 use Yaleksandr\ArchiveGuard\ViolationCode;
@@ -62,27 +63,36 @@ final class ZipExtractionTest extends TestCase
 
     public function testPasswordApiContract(): void
     {
-        $public = new ReflectionMethod(ArchiveGuard::class, 'extract');
-        $parameter = $public->getParameters()[4];
-        self::assertSame('zipPassword', $parameter->getName());
-        self::assertSame('?string', (string) $parameter->getType());
-        self::assertTrue($parameter->isDefaultValueAvailable());
-        self::assertNull($parameter->getDefaultValue());
-        self::assertCount(1, $parameter->getAttributes(SensitiveParameter::class));
-        $internal = new ReflectionMethod(ZipExtractor::class, 'extract');
-        self::assertCount(1, $internal->getParameters()[3]->getAttributes(SensitiveParameter::class));
+        foreach (['inspect' => 2, 'extract' => 4] as $method => $position) {
+            $parameter = new ReflectionMethod(ArchiveGuard::class, $method)->getParameters()[$position];
+            self::assertSame('password', $parameter->getName());
+            self::assertSame('?string', (string) $parameter->getType());
+            self::assertTrue($parameter->isDefaultValueAvailable());
+            self::assertNull($parameter->getDefaultValue());
+            self::assertCount(1, $parameter->getAttributes(SensitiveParameter::class));
+        }
+        foreach ([
+            [ArchiveGuard::class, 'validatePasswordFormat', 1],
+            [ZipExtractor::class, 'extract', 3],
+            [ZipInspector::class, 'inspect', 4],
+            [ZipPayloadReader::class, 'read', 2],
+        ] as [$class, $method, $position]) {
+            self::assertCount(1, new ReflectionMethod($class, $method)->getParameters()[$position]->getAttributes(SensitiveParameter::class));
+        }
     }
 
     public function testEncryptedWithoutPasswordNeverPublishes(): void
     {
         $path = $this->encrypted([['name' => 'secret.txt', 'payload' => 'hidden']]);
+        $inspection = new ArchiveGuard()->inspect($path, $this->policy());
+        self::assertSame(ViolationCode::EncryptedEntry, $inspection->violations()[0]->code);
         foreach ([false, true] as $merge) {
             [$destination, $options] = $this->destination($merge);
             try {
                 new ArchiveGuard()->extract($path, $destination, $this->policy(), $options);
                 self::fail('Encrypted ZIP accepted without password.');
             } catch (ArchiveRejectedException $e) {
-                self::assertContains(ViolationCode::EncryptedEntry, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
+                self::assertEquals($inspection, $e->inspectionResult());
                 $this->assertUnpublished($destination, $merge);
             }
         }
@@ -91,9 +101,10 @@ final class ZipExtractionTest extends TestCase
     public function testCorrectPasswordAtomicAndMerge(): void
     {
         $path = $this->encrypted([['name' => 'secret.txt', 'payload' => 'hidden']]);
+        self::assertTrue(new ArchiveGuard()->inspect($path, $this->policy(), password: 'secret')->isAccepted());
         foreach ([false, true] as $merge) {
             [$destination, $options] = $this->destination($merge);
-            $result = new ArchiveGuard()->extract($path, $destination, $this->policy(), $options, zipPassword: 'secret');
+            $result = new ArchiveGuard()->extract($path, $destination, $this->policy(), $options, password: 'secret');
             self::assertSame('hidden', file_get_contents($destination . '/secret.txt'));
             self::assertSame(1, $result->filesExtracted());
             self::assertSame(0, $result->directoriesCreated());
@@ -105,19 +116,36 @@ final class ZipExtractionTest extends TestCase
         }
     }
 
-    public function testWrongPasswordMixedArchiveCannotPartiallyPublish(): void
+    /** @return iterable<string, array{string}> */
+    public static function wrongPasswords(): iterable
+    {
+        yield 'wrong password' => ['wrong-password-marker'];
+        yield 'explicit empty password' => [''];
+    }
+
+    #[DataProvider('wrongPasswords')]
+    public function testWrongPasswordMixedArchiveCannotPartiallyPublish(#[SensitiveParameter] string $password): void
     {
         $path = $this->encrypted([
             ['name' => 'plain.txt', 'payload' => 'visible', 'encrypted' => false],
             ['name' => 'secret.txt', 'payload' => 'hidden', 'encrypted' => true],
         ]);
+        $inspection = new ArchiveGuard()->inspect($path, $this->policy(), password: $password);
+        self::assertSame(ViolationCode::DecryptionFailed, $inspection->violations()[0]->code);
+        self::assertSame('decryption_failed', $inspection->violations()[0]->code->value);
+        foreach ($inspection->violations() as $violation) {
+            self::assertStringNotContainsString('wrong-password-marker', $violation->message);
+            self::assertStringNotContainsString('secret', $violation->message);
+        }
         foreach ([false, true] as $merge) {
             [$destination, $options] = $this->destination($merge);
             try {
-                new ArchiveGuard()->extract($path, $destination, $this->policy(), $options, zipPassword: 'wrong-password-marker');
+                new ArchiveGuard()->extract($path, $destination, $this->policy(), $options, password: $password);
                 self::fail('Wrong password accepted.');
-            } catch (ExtractionException $e) {
+            } catch (ArchiveRejectedException $e) {
+                self::assertEquals($inspection, $e->inspectionResult());
                 self::assertStringNotContainsString('wrong-password-marker', $e->getMessage());
+                self::assertStringNotContainsString('secret', $e->getMessage());
                 $this->assertUnpublished($destination, $merge);
             }
             // A failed extraction must release the cooperative lock.
@@ -133,27 +161,35 @@ final class ZipExtractionTest extends TestCase
             ['name' => 'plain.txt', 'payload' => 'visible', 'encrypted' => false],
             ['name' => 'secret.txt', 'payload' => 'hidden', 'encrypted' => true],
         ]);
+        self::assertTrue(new ArchiveGuard()->inspect($path, $this->policy(), password: 'secret')->isAccepted());
         $destination = $this->workspace->directory() . '/mixed';
-        $result = new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), zipPassword: 'secret');
+        $result = new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), password: 'secret');
         self::assertSame('visible', file_get_contents($destination . '/plain.txt'));
         self::assertSame('hidden', file_get_contents($destination . '/secret.txt'));
         self::assertSame(2, $result->filesExtracted());
         self::assertSame(13, $result->bytesWritten());
         $plain = Zip::create($this->workspace, [['name' => 'plain.txt', 'payload' => 'ok']]);
+        self::assertTrue(new ArchiveGuard()->inspect($plain, $this->policy(), password: 'unused')->isAccepted());
+        self::assertTrue(new ArchiveGuard()->inspect($plain, $this->policy(), password: '')->isAccepted());
         $plainDestination = $this->workspace->directory() . '/plain';
-        new ArchiveGuard()->extract($plain, $plainDestination, $this->policy(), ExtractionOptions::atomic(), zipPassword: 'unused');
+        new ArchiveGuard()->extract($plain, $plainDestination, $this->policy(), ExtractionOptions::atomic(), password: 'unused');
         self::assertSame('ok', file_get_contents($plainDestination . '/plain.txt'));
+        $emptyPasswordDestination = $this->workspace->directory() . '/plain-empty-password';
+        new ArchiveGuard()->extract($plain, $emptyPasswordDestination, $this->policy(), ExtractionOptions::atomic(), password: '');
+        self::assertSame('ok', file_get_contents($emptyPasswordDestination . '/plain.txt'));
     }
 
     public function testPasswordDoesNotBypassUnsafePath(): void
     {
         $path = $this->encrypted([['name' => '../escape.txt', 'payload' => 'bad']]);
+        $inspection = new ArchiveGuard()->inspect($path, $this->policy(), password: 'secret');
+        self::assertSame(ViolationCode::UnsafePath, $inspection->violations()[0]->code);
         $destination = $this->workspace->directory() . '/result';
         try {
-            new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), zipPassword: 'secret');
+            new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), password: 'secret');
             self::fail('Unsafe encrypted entry extracted.');
         } catch (ArchiveRejectedException $e) {
-            self::assertContains(ViolationCode::UnsafePath, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
+            self::assertEquals($inspection, $e->inspectionResult());
             self::assertFileDoesNotExist($destination);
         }
     }
@@ -193,11 +229,13 @@ final class ZipExtractionTest extends TestCase
         if ($path === null) {
             self::markTestSkipped('Runtime cannot create and decrypt an empty-password encrypted ZIP fixture.');
         }
+        self::assertTrue(new ArchiveGuard()->inspect($path, $this->policy(), password: '')->isAccepted());
+        self::assertSame(ViolationCode::EncryptedEntry, new ArchiveGuard()->inspect($path, $this->policy(), password: null)->violations()[0]->code);
         $destination = $this->workspace->directory() . '/empty-password';
-        new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), zipPassword: '');
+        new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), password: '');
         self::assertSame('empty', file_get_contents($destination . '/empty.txt'));
         try {
-            new ArchiveGuard()->extract($path, $this->workspace->directory() . '/no-password', $this->policy(), ExtractionOptions::atomic(), zipPassword: null);
+            new ArchiveGuard()->extract($path, $this->workspace->directory() . '/no-password', $this->policy(), ExtractionOptions::atomic(), password: null);
             self::fail('Encrypted ZIP accepted with null password.');
         } catch (ArchiveRejectedException $e) {
             self::assertContains(ViolationCode::EncryptedEntry, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
@@ -215,12 +253,14 @@ final class ZipExtractionTest extends TestCase
             } catch (RuntimeException) {
                 continue;
             }
+            $inspection = new ArchiveGuard()->inspect($path, $this->policy(), password: 'secret');
+            self::assertSame(ViolationCode::UnsupportedEncryption, $inspection->violations()[0]->code);
             $destination = $this->workspace->directory() . '/unsupported';
             try {
-                new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), zipPassword: 'secret');
+                new ArchiveGuard()->extract($path, $destination, $this->policy(), ExtractionOptions::atomic(), password: 'secret');
                 self::fail('Unsupported encryption accepted.');
             } catch (ArchiveRejectedException $e) {
-                self::assertContains(ViolationCode::UnsupportedEncryption, array_map(static fn($v) => $v->code, $e->inspectionResult()->violations()));
+                self::assertEquals($inspection, $e->inspectionResult());
                 self::assertFileDoesNotExist($destination);
                 self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
             }

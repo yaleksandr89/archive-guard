@@ -17,7 +17,7 @@ use ZipArchive;
 /** @internal */
 final class ZipScanner
 {
-    public function scan(ZipArchive $zip, ArchivePolicy $policy, bool $allowEncrypted = false): ArchiveScanResult
+    public function scan(ZipArchive $zip, ArchivePolicy $policy, bool $passwordSupplied = false): ArchiveScanResult
     {
         $state = new InspectionAccumulator($policy);
         $entries = [];
@@ -46,7 +46,7 @@ final class ZipScanner
                 $state->add(ViolationCode::UnsupportedFeature, $name);
             }
             if ($stat['encryption_method'] !== ZipArchive::EM_NONE) {
-                if (!$allowEncrypted) {
+                if (!$passwordSupplied) {
                     $state->add(ViolationCode::EncryptedEntry, $name);
                 } elseif (!ZipArchive::isEncryptionMethodSupported($stat['encryption_method'], false)) {
                     $state->add(ViolationCode::UnsupportedEncryption, $name);

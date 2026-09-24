@@ -11,6 +11,8 @@ use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
+use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
+use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TarFixtureFactory as Tar;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory as Zip;
@@ -32,7 +34,19 @@ final class ArchiveGuardInspectionTest extends TestCase
     /** @return iterable<string, array{ArchiveFormat, list<string>, ?ViolationCode}> */
     public static function paths(): iterable
     {
+        $platform = PHP_OS_FAMILY === 'Windows' ? ViolationCode::PlatformIncompatiblePath : null;
+        $caseCollision = PHP_OS_FAMILY === 'Windows' ? ViolationCode::PathCollision : null;
         $cases = [
+            'Windows device' => [['CON.txt'], $platform],
+            'Windows stream' => [['dir/file:stream'], $platform],
+            'Windows forbidden char' => [['bad?.txt'], $platform],
+            'Windows trailing dot' => [['name.'], $platform],
+            'Windows trailing space' => [['name '], $platform],
+            'ASCII file collision' => [['Foo', 'foo'], $caseCollision],
+            'ASCII implicit directory collision' => [['Foo/a', 'foo/b'], $caseCollision],
+            'ASCII file-parent collision' => [['Foo', 'foo/b'], $caseCollision],
+            'ASCII reverse parent collision' => [['Foo/a', 'foo'], $caseCollision],
+            'ASCII explicit directory collision' => [['Foo/a', 'foo/'], $caseCollision],
             'file' => [['ok'], null], 'directory' => [['foo/', 'foo/bar'], null],
             'parent' => [['../x'], ViolationCode::UnsafePath], 'backslash' => [['a\\..\\x'], ViolationCode::UnsafePath],
             'absolute' => [['/x'], ViolationCode::UnsafePath], 'drive' => [['C:\\x'], ViolationCode::UnsafePath],
@@ -84,6 +98,14 @@ final class ArchiveGuardInspectionTest extends TestCase
             self::assertContains($expected, $codes);
             self::assertSame($names[count($names) - 1], $result->violations()[0]->entryName);
             self::assertNotSame('', $result->violations()[0]->message);
+            $destination = $this->workspace->directory() . '/result';
+            try {
+                new ArchiveGuard()->extract($path, $destination, new ArchivePolicy(100000, 20, 10000, 20000), ExtractionOptions::atomic());
+                self::fail('Rejected path extracted.');
+            } catch (ArchiveRejectedException $e) {
+                self::assertEquals($result, $e->inspectionResult());
+                self::assertFileDoesNotExist($destination);
+            }
         }
     }
     #[TestDox('Пустые архивы всех поддерживаемых форматов принимаются')]

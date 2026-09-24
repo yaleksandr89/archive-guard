@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yaleksandr\ArchiveGuard\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -425,7 +426,7 @@ final class ArchiveGuardExtractionTest extends TestCase
     }
 
     #[DataProvider('tarPasswordCases')]
-    public function testZipPasswordRejectedForTarBeforeWorkspace(ArchiveFormat $format, bool $merge): void
+    public function testPasswordRejectedForTarBeforeWorkspace(ArchiveFormat $format, bool $merge): void
     {
         $source = $this->source($format, false);
         $destination = $this->workspace->directory() . '/result';
@@ -433,30 +434,46 @@ final class ArchiveGuardExtractionTest extends TestCase
             mkdir($destination);
             file_put_contents($destination . '/keep.txt', 'keep');
         }
-        try {
-            new ArchiveGuard()->extract($source, $destination, $this->policy(), $merge ? ExtractionOptions::merge(ExtractionConflictStrategy::Reject) : ExtractionOptions::atomic(), zipPassword: 'tar-secret-marker');
-            self::fail('ZIP password accepted for TAR.');
-        } catch (ExtractionException $e) {
-            self::assertStringNotContainsString('tar-secret-marker', $e->getMessage());
-            if ($merge) {
-                self::assertSame(['.', '..', 'keep.txt'], scandir($destination));
-                self::assertSame('keep', file_get_contents($destination . '/keep.txt'));
-            } else {
-                self::assertFileDoesNotExist($destination);
+        foreach (['tar-secret-marker', ''] as $password) {
+            try {
+                new ArchiveGuard()->inspect($source, $this->policy(), password: $password);
+                self::fail('Password accepted for TAR inspection.');
+            } catch (InvalidArgumentException $e) {
+                $message = $e->getMessage();
+                self::assertSame('Password is only valid for ZIP archives.', $message);
+                self::assertStringNotContainsString('tar-secret-marker', $message);
             }
-            self::assertFileDoesNotExist(dirname($destination) . '/.archive-guard-locks');
-            self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
+            try {
+                new ArchiveGuard()->extract($source, $destination, $this->policy(), $merge ? ExtractionOptions::merge(ExtractionConflictStrategy::Reject) : ExtractionOptions::atomic(), password: $password);
+                self::fail('Password accepted for TAR extraction.');
+            } catch (InvalidArgumentException $e) {
+                self::assertSame($message, $e->getMessage());
+                if ($merge) {
+                    self::assertSame(['.', '..', 'keep.txt'], scandir($destination));
+                    self::assertSame('keep', file_get_contents($destination . '/keep.txt'));
+                } else {
+                    self::assertFileDoesNotExist($destination);
+                }
+                self::assertFileDoesNotExist(dirname($destination) . '/.archive-guard-locks');
+                self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
+            }
         }
     }
 
-    public function testArchiveSizePrecedesInvalidTarPassword(): void
+    #[DataProvider('tarPasswordCases')]
+    public function testArchiveSizePrecedesInvalidTarPassword(ArchiveFormat $format, bool $merge): void
     {
-        $source = $this->source(ArchiveFormat::Tar, false);
+        $source = $this->source($format, false);
+        $parent = $this->workspace->directory();
+        $policy = new ArchivePolicy(1, 20, 10000, 20000);
+        $inspection = new ArchiveGuard()->inspect($source, $policy, password: 'secret');
+        self::assertSame(ViolationCode::ArchiveTooLarge, $inspection->violations()[0]->code);
         try {
-            new ArchiveGuard()->extract($source, $this->workspace->directory() . '/result', new ArchivePolicy(1, 20, 10000, 20000), ExtractionOptions::atomic(), zipPassword: 'secret');
+            new ArchiveGuard()->extract($source, $parent . '/result', $policy, $merge ? ExtractionOptions::merge(ExtractionConflictStrategy::Reject) : ExtractionOptions::atomic(), password: 'secret');
             self::fail('Oversized TAR accepted.');
         } catch (ArchiveRejectedException $e) {
-            self::assertSame(ViolationCode::ArchiveTooLarge, $e->inspectionResult()->violations()[0]->code);
+            self::assertEquals($inspection, $e->inspectionResult());
+            self::assertSame(['.', '..'], scandir($parent));
         }
     }
 

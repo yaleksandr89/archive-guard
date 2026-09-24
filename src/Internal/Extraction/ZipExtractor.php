@@ -9,8 +9,9 @@ use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
-use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
 use Yaleksandr\ArchiveGuard\ExtractionResult;
+use Yaleksandr\ArchiveGuard\Internal\NormalizedArchiveEntry;
+use Yaleksandr\ArchiveGuard\Internal\Zip\ZipPayloadReader;
 use Yaleksandr\ArchiveGuard\Internal\Zip\ZipScanner;
 use ZipArchive;
 
@@ -24,40 +25,31 @@ final class ZipExtractor
             throw new ArchiveOpenException('Cannot open consistent ZIP archive.');
         }
         try {
-            if ($password !== null && !@$zip->setPassword($password)) {
-                throw new ExtractionException('Cannot configure ZIP password.');
-            }
             $scan = new ZipScanner()->scan($zip, $policy, $password !== null);
             if (!$scan->inspection->isAccepted()) {
                 throw new ArchiveRejectedException($scan->inspection);
             }
             $target = new FilesystemExtractionTarget($destination, $scan->entries, $policy);
-            foreach ($scan->entries as $entry) {
-                if ($entry->directory) {
-                    $target->directory($entry);
-                    continue;
-                }
-                $target->beginFile($entry);
-                try {
-                    $input = @$zip->getStreamIndex($entry->index, ZipArchive::FL_UNCHANGED);
-                    if ($input === false) {
-                        throw new ExtractionException('Cannot read accepted ZIP entry.');
+            try {
+                $inspection = new ZipPayloadReader()->read($zip, $scan, $password, static function (NormalizedArchiveEntry $entry) use ($target): ?callable {
+                    if ($entry->directory) {
+                        $target->directory($entry);
+                        return null;
                     }
-                    try {
-                        while (!feof($input)) {
-                            $chunk = @fread($input, 8192);
-                            if ($chunk === false || ($chunk === '' && !feof($input))) {
-                                throw new ExtractionException('Cannot read ZIP entry payload.');
-                            }
+                    $target->beginFile($entry);
+                    return static function (string $chunk) use ($target): void {
+                        if ($chunk === '') {
+                            $target->finishFile();
+                        } else {
                             $target->write($chunk);
                         }
-                    } finally {
-                        fclose($input);
-                    }
-                    $target->finishFile();
-                } finally {
-                    $target->abortFile();
+                    };
+                });
+                if (!$inspection->isAccepted()) {
+                    throw new ArchiveRejectedException($inspection);
                 }
+            } finally {
+                $target->abortFile();
             }
             return $target->result(ArchiveFormat::Zip);
         } finally {

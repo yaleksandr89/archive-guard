@@ -44,8 +44,6 @@ final class FilesystemExtractionTarget
             throw new ExtractionException('Destination must be empty and readable.');
         }
         $this->root = $root;
-        $windows = PHP_OS_FAMILY === 'Windows';
-        $folded = [];
         foreach ($entries as $entry) {
             if ($entry->path === '') {
                 if (!$entry->directory) {
@@ -53,24 +51,9 @@ final class FilesystemExtractionTarget
                 }
                 continue;
             }
-            $prefix = '';
             foreach (explode('/', $entry->path) as $part) {
                 if ($part === '' || $part === '.' || $part === '..' || str_contains($part, "\0") || str_contains($part, '\\')) {
                     throw new ExtractionException('Invalid normalized target path.');
-                }
-                if ($windows && (preg_match('//u', $part) !== 1
-                    || preg_match('/[<>:"|?*\\x00-\\x1f]/', $part) === 1
-                    || str_ends_with($part, '.') || str_ends_with($part, ' ')
-                    || preg_match('/^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\.|$)/iu', $part) === 1)) {
-                    throw new ExtractionException('Target name is incompatible with Windows.');
-                }
-                if ($windows) {
-                    $prefix = $prefix === '' ? $part : $prefix . '/' . $part;
-                    $key = strtolower($prefix);
-                    if (isset($folded[$key]) && $folded[$key] !== $prefix) {
-                        throw new ExtractionException('Case-insensitive target path collision.');
-                    }
-                    $folded[$key] = $prefix;
                 }
             }
         }

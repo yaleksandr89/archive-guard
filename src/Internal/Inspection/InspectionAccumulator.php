@@ -7,6 +7,7 @@ namespace Yaleksandr\ArchiveGuard\Internal\Inspection;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Internal\Path\PathCanonicalizer;
 use Yaleksandr\ArchiveGuard\Internal\Path\PathRegistry;
+use Yaleksandr\ArchiveGuard\Internal\Path\PlatformPathValidator;
 use Yaleksandr\ArchiveGuard\Violation;
 use Yaleksandr\ArchiveGuard\ViolationCode;
 
@@ -33,7 +34,11 @@ final class InspectionAccumulator
         if ($canonical === null || ($canonical === '' && !$directory)) {
             $this->add(ViolationCode::UnsafePath, $name);
             return null;
-        } elseif ($canonical !== '' && !$this->registry->register($canonical, $directory)) {
+        }
+        if (!new PlatformPathValidator()->isCompatible($canonical)) {
+            $this->add(ViolationCode::PlatformIncompatiblePath, $name);
+        }
+        if ($canonical !== '' && !$this->registry->register($canonical, $directory)) {
             $this->add(ViolationCode::PathCollision, $name);
         }
         return $canonical;
