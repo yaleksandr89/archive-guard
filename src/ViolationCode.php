@@ -17,6 +17,7 @@ enum ViolationCode: string
     case TotalSizeExceeded = 'total_size_exceeded';
     case CompressionRatioExceeded = 'compression_ratio_exceeded';
     case EncryptedEntry = 'encrypted_entry';
+    case UnsupportedEncryption = 'unsupported_encryption';
     case UnsupportedCompression = 'unsupported_compression';
     case UnsupportedFeature = 'unsupported_feature';
 }

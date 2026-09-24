@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Yaleksandr\ArchiveGuard;
 
+use SensitiveParameter;
 use Throwable;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
+use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
 use Yaleksandr\ArchiveGuard\Internal\ArchiveFormatDetector;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\ExtractionWorkspace;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\MergeExtractionPublisher;
@@ -27,11 +29,20 @@ final class ArchiveGuard
         return $inspector->inspect($archivePath, $policy, $format, $size);
     }
 
-    public function extract(string $archivePath, string $destinationPath, ArchivePolicy $policy, ExtractionOptions $options): ExtractionResult
-    {
+    public function extract(
+        string $archivePath,
+        string $destinationPath,
+        ArchivePolicy $policy,
+        ExtractionOptions $options,
+        #[SensitiveParameter]
+        ?string $zipPassword = null,
+    ): ExtractionResult {
         [$format, $size] = $this->source($archivePath);
         if ($size > $policy->maxArchiveBytes) {
             throw new ArchiveRejectedException($this->tooLarge($format));
+        }
+        if ($format !== ArchiveFormat::Zip && $zipPassword !== null) {
+            throw new ExtractionException('ZIP password is only valid for ZIP archives.');
         }
         $workspace = match ($options->mode()) {
             ExtractionMode::Atomic => ExtractionWorkspace::atomic($destinationPath),
@@ -40,7 +51,7 @@ final class ArchiveGuard
         $failure = null;
         try {
             $result = $format === ArchiveFormat::Zip
-                ? new ZipExtractor()->extract($archivePath, $workspace->stagingPath(), $policy)
+                ? new ZipExtractor()->extract($archivePath, $workspace->stagingPath(), $policy, $zipPassword)
                 : new TarExtractor()->extract($archivePath, $workspace->stagingPath(), $policy, $format, $size);
             $strategy = $options->conflictStrategy();
             if ($strategy !== null) {

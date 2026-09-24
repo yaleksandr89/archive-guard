@@ -44,7 +44,7 @@ final class ZipInspectionTest extends TestCase
     public function testEncryption(): void
     {
         if (!ZipArchive::isEncryptionMethodSupported(ZipArchive::EM_AES_256, true)) {
-            self::markTestSkipped('Runtime cannot create AES fixture.');
+            self::markTestSkipped('Runtime cannot create AES-256 fixture.');
         }
         $path = ZipFixtureFactory::create($this->workspace, [['name' => 'secret']], true);
         self::assertContains(ViolationCode::EncryptedEntry, $this->codes($path, new ArchivePolicy(4096, 5, 100, 100)));

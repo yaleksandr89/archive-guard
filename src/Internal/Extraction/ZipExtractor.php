@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yaleksandr\ArchiveGuard\Internal\Extraction;
 
+use SensitiveParameter;
 use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
@@ -16,14 +17,17 @@ use ZipArchive;
 /** @internal */
 final class ZipExtractor
 {
-    public function extract(string $path, string $destination, ArchivePolicy $policy): ExtractionResult
+    public function extract(string $path, string $destination, ArchivePolicy $policy, #[SensitiveParameter] ?string $password = null): ExtractionResult
     {
         $zip = new ZipArchive();
         if (@$zip->open($path, ZipArchive::RDONLY | ZipArchive::CHECKCONS) !== true) {
             throw new ArchiveOpenException('Cannot open consistent ZIP archive.');
         }
         try {
-            $scan = new ZipScanner()->scan($zip, $policy);
+            if ($password !== null && !@$zip->setPassword($password)) {
+                throw new ExtractionException('Cannot configure ZIP password.');
+            }
+            $scan = new ZipScanner()->scan($zip, $policy, $password !== null);
             if (!$scan->inspection->isAccepted()) {
                 throw new ArchiveRejectedException($scan->inspection);
             }

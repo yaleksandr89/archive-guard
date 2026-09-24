@@ -414,6 +414,52 @@ final class ArchiveGuardExtractionTest extends TestCase
         }
     }
 
+    /** @return iterable<string, array{ArchiveFormat, bool}> */
+    public static function tarPasswordCases(): iterable
+    {
+        foreach ([ArchiveFormat::Tar, ArchiveFormat::TarGz] as $format) {
+            foreach ([false, true] as $merge) {
+                yield $format->value . '/' . ($merge ? 'merge' : 'atomic') => [$format, $merge];
+            }
+        }
+    }
+
+    #[DataProvider('tarPasswordCases')]
+    public function testZipPasswordRejectedForTarBeforeWorkspace(ArchiveFormat $format, bool $merge): void
+    {
+        $source = $this->source($format, false);
+        $destination = $this->workspace->directory() . '/result';
+        if ($merge) {
+            mkdir($destination);
+            file_put_contents($destination . '/keep.txt', 'keep');
+        }
+        try {
+            new ArchiveGuard()->extract($source, $destination, $this->policy(), $merge ? ExtractionOptions::merge(ExtractionConflictStrategy::Reject) : ExtractionOptions::atomic(), zipPassword: 'tar-secret-marker');
+            self::fail('ZIP password accepted for TAR.');
+        } catch (ExtractionException $e) {
+            self::assertStringNotContainsString('tar-secret-marker', $e->getMessage());
+            if ($merge) {
+                self::assertSame(['.', '..', 'keep.txt'], scandir($destination));
+                self::assertSame('keep', file_get_contents($destination . '/keep.txt'));
+            } else {
+                self::assertFileDoesNotExist($destination);
+            }
+            self::assertFileDoesNotExist(dirname($destination) . '/.archive-guard-locks');
+            self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
+        }
+    }
+
+    public function testArchiveSizePrecedesInvalidTarPassword(): void
+    {
+        $source = $this->source(ArchiveFormat::Tar, false);
+        try {
+            new ArchiveGuard()->extract($source, $this->workspace->directory() . '/result', new ArchivePolicy(1, 20, 10000, 20000), ExtractionOptions::atomic(), zipPassword: 'secret');
+            self::fail('Oversized TAR accepted.');
+        } catch (ArchiveRejectedException $e) {
+            self::assertSame(ViolationCode::ArchiveTooLarge, $e->inspectionResult()->violations()[0]->code);
+        }
+    }
+
     private function source(ArchiveFormat $format, bool $empty): string
     {
         if ($format === ArchiveFormat::Zip) {
