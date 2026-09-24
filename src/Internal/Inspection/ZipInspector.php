@@ -4,24 +4,27 @@ declare(strict_types=1);
 
 namespace Yaleksandr\ArchiveGuard\Internal\Inspection;
 
+use SensitiveParameter;
 use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
 use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
 use Yaleksandr\ArchiveGuard\InspectionResult;
+use Yaleksandr\ArchiveGuard\Internal\Zip\ZipPayloadReader;
 use Yaleksandr\ArchiveGuard\Internal\Zip\ZipScanner;
 use ZipArchive;
 
 /** @internal */
 final class ZipInspector implements ArchiveInspector
 {
-    public function inspect(string $path, ArchivePolicy $policy, ArchiveFormat $format, int $sourceBytes): InspectionResult
+    public function inspect(string $path, ArchivePolicy $policy, ArchiveFormat $format, int $sourceBytes, #[SensitiveParameter] ?string $password = null): InspectionResult
     {
         $zip = new ZipArchive();
         if (@$zip->open($path, ZipArchive::RDONLY | ZipArchive::CHECKCONS) !== true) {
             throw new ArchiveOpenException('Cannot open consistent ZIP archive.');
         }
         try {
-            return new ZipScanner()->scan($zip, $policy)->inspection;
+            $scan = new ZipScanner()->scan($zip, $policy, $password !== null);
+            return new ZipPayloadReader()->read($zip, $scan, $password);
         } finally {
             $zip->close();
         }

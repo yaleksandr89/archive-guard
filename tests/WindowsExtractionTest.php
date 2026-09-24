@@ -11,12 +11,14 @@ use PHPUnit\Framework\TestCase;
 use Yaleksandr\ArchiveGuard\ArchiveFormat;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
+use Yaleksandr\ArchiveGuard\Exception\ArchiveRejectedException;
 use Yaleksandr\ArchiveGuard\Exception\ExtractionException;
 use Yaleksandr\ArchiveGuard\ExtractionConflictStrategy;
 use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Internal\Extraction\ExtractionWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\TarFixtureFactory as Tar;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
+use Yaleksandr\ArchiveGuard\ViolationCode;
 
 #[RequiresOperatingSystemFamily('Windows')]
 final class WindowsExtractionTest extends TestCase
@@ -42,10 +44,13 @@ final class WindowsExtractionTest extends TestCase
         yield 'invalid Win32 character' => ['bad?.txt'];
         yield 'trailing dot' => ['name.'];
         yield 'trailing space' => ['name '];
+        yield 'invalid UTF-8' => ["bad\xff"];
+        yield 'control character' => ["bad\x01name"];
+        yield 'reserved superscript device' => ['COM¹.txt'];
     }
 
     #[DataProvider('invalidNames')]
-    #[TestDox('Недопустимое для Windows имя проходит проверку архива, но не извлекается')]
+    #[TestDox('Недопустимое для Windows имя отклоняется одинаково при проверке и извлечении')]
     public function testInvalidWindowsNameIsRejectedBeforeWriting(string $name): void
     {
         $this->assertRejectedBeforeWriting(Tar::record($name, 'payload'));
@@ -54,7 +59,7 @@ final class WindowsExtractionTest extends TestCase
     #[TestDox('Пути, различающиеся только регистром ASCII, не извлекаются в Windows')]
     public function testAsciiCaseInsensitiveCollisionIsRejectedBeforeWriting(): void
     {
-        $this->assertRejectedBeforeWriting(Tar::record('Foo/file.txt', 'first') . Tar::record('foo/file.txt', 'second'));
+        $this->assertRejectedBeforeWriting(Tar::record('Foo/file.txt', 'first') . Tar::record('foo/file.txt', 'second'), ViolationCode::PathCollision);
     }
 
     #[TestDox('Эквивалентные не-ASCII имена Windows используют одну блокировку')]
@@ -226,7 +231,7 @@ final class WindowsExtractionTest extends TestCase
         }
     }
 
-    private function assertRejectedBeforeWriting(string $records): void
+    private function assertRejectedBeforeWriting(string $records, ViolationCode $expected = ViolationCode::PlatformIncompatiblePath): void
     {
         $source = $this->workspace->file(Tar::archive($records));
         $destination = $this->workspace->directory() . '/result';
@@ -235,12 +240,15 @@ final class WindowsExtractionTest extends TestCase
 
         $inspection = $guard->inspect($source, $policy);
         self::assertSame(ArchiveFormat::Tar, $inspection->format());
-        self::assertTrue($inspection->isAccepted());
+        self::assertFalse($inspection->isAccepted());
+        self::assertSame($expected, $inspection->violations()[0]->code);
 
         try {
             $guard->extract($source, $destination, $policy, ExtractionOptions::atomic());
             self::fail('Windows-incompatible archive extracted.');
-        } catch (ExtractionException) {
+        } catch (ArchiveRejectedException $e) {
+            self::assertEquals($inspection, $e->inspectionResult());
+            self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
             self::assertFalse(file_exists($destination));
         }
     }

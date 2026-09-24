@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
 use Yaleksandr\ArchiveGuard\ArchiveGuard;
 use Yaleksandr\ArchiveGuard\ArchivePolicy;
+use Yaleksandr\ArchiveGuard\Exception\ArchiveOpenException;
+use Yaleksandr\ArchiveGuard\ExtractionOptions;
 use Yaleksandr\ArchiveGuard\Tests\Support\TemporaryWorkspace;
 use Yaleksandr\ArchiveGuard\Tests\Support\ZipFixtureFactory;
 use Yaleksandr\ArchiveGuard\Violation;
@@ -44,7 +46,7 @@ final class ZipInspectionTest extends TestCase
     public function testEncryption(): void
     {
         if (!ZipArchive::isEncryptionMethodSupported(ZipArchive::EM_AES_256, true)) {
-            self::markTestSkipped('Runtime cannot create AES fixture.');
+            self::markTestSkipped('Runtime cannot create AES-256 fixture.');
         }
         $path = ZipFixtureFactory::create($this->workspace, [['name' => 'secret']], true);
         self::assertContains(ViolationCode::EncryptedEntry, $this->codes($path, new ArchivePolicy(4096, 5, 100, 100)));
@@ -72,6 +74,63 @@ final class ZipInspectionTest extends TestCase
         $empty = ZipFixtureFactory::create($this->workspace, [['name' => 'empty', 'payload' => '']]);
         self::assertSame([], $this->codes($empty, new ArchivePolicy(4096, 1, 1, 1, 0.1)));
     }
+    public function testCorruptPayloadWithConsistentMetadataIsRejectedByBothOperations(): void
+    {
+        $path = ZipFixtureFactory::corruptDeflatePayload($this->workspace);
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open($path, ZipArchive::RDONLY | ZipArchive::CHECKCONS) === true);
+        try {
+            $stat = $zip->statIndex(0);
+            self::assertIsArray($stat);
+            self::assertSame(7000, $stat['size']);
+            self::assertSame(ZipArchive::CM_DEFLATE, $stat['comp_method']);
+        } finally {
+            $zip->close();
+        }
+        $guard = new ArchiveGuard();
+        $policy = new ArchivePolicy(100000, 10, 10000, 10000);
+        $destination = $this->workspace->directory() . '/result';
+        $message = null;
+        foreach ([false, true] as $extract) {
+            try {
+                if ($extract) {
+                    $guard->extract($path, $destination, $policy, ExtractionOptions::atomic());
+                } else {
+                    $guard->inspect($path, $policy);
+                }
+                self::fail('Corrupt ZIP payload accepted.');
+            } catch (ArchiveOpenException $e) {
+                if ($message === null) {
+                    $message = $e->getMessage();
+                }
+                self::assertSame($message, $e->getMessage());
+                self::assertStringContainsString('payload', $e->getMessage());
+            }
+        }
+        self::assertFileDoesNotExist($destination);
+        self::assertSame([], glob(dirname($destination) . '/.archive-guard-stage-*'));
+    }
+
+    public function testPayloadAcrossChunksAndEmptyFile(): void
+    {
+        $payload = str_repeat('payload', 5000);
+        $path = ZipFixtureFactory::create($this->workspace, [
+            ['name' => 'large', 'payload' => $payload],
+            ['name' => 'empty', 'payload' => ''],
+            ['name' => 'directory/'],
+        ]);
+        $policy = new ArchivePolicy(100000, 10, 40000, 40000);
+        $guard = new ArchiveGuard();
+        self::assertTrue($guard->inspect($path, $policy)->isAccepted());
+        $destination = $this->workspace->directory() . '/result';
+        $result = $guard->extract($path, $destination, $policy, ExtractionOptions::atomic());
+        self::assertSame($payload, file_get_contents($destination . '/large'));
+        self::assertSame('', file_get_contents($destination . '/empty'));
+        self::assertSame(strlen($payload), $result->bytesWritten());
+        self::assertSame(2, $result->filesExtracted());
+        self::assertSame(1, $result->directoriesCreated());
+    }
+
     /** @return list<ViolationCode> */
     private function codes(string $path, ArchivePolicy $policy): array
     {
