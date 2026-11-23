@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -26,6 +27,9 @@ jobs:
             role: Tests
             command: composer test
           - php: '8.5'
+            role: Tests
+            command: composer test
+          - php: '8.6'
             role: Full checks
             command: composer check
     steps:
@@ -48,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4', '8.5']
+        php: ['8.4', '8.5', '8.6']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
