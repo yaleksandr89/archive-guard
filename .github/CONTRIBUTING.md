@@ -4,7 +4,7 @@
 
 | Русский | English | Español | 中文 | Français | Deutsch |
 |---|---|---|---|---|---|
-| **Русский** | [English](https://github.com/yaleksandr89/archive-guard/blob/master/docs/contributing/CONTRIBUTING_en.md) | [Español](https://github.com/yaleksandr89/archive-guard/blob/master/docs/contributing/CONTRIBUTING_es.md) | [中文](https://github.com/yaleksandr89/archive-guard/blob/master/docs/contributing/CONTRIBUTING_zh.md) | [Français](https://github.com/yaleksandr89/archive-guard/blob/master/docs/contributing/CONTRIBUTING_fr.md) | [Deutsch](https://github.com/yaleksandr89/archive-guard/blob/master/docs/contributing/CONTRIBUTING_de.md) |
+| **Русский** | [English](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/en/CONTRIBUTING.md) | [Español](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/es/CONTRIBUTING.md) | [中文](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/zh/CONTRIBUTING.md) | [Français](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/fr/CONTRIBUTING.md) | [Deutsch](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/de/CONTRIBUTING.md) |
 
 Спасибо за желание улучшить Archive Guard. Изменения здесь затрагивают обработку недоверенных
 архивов, пароли ZIP, кооперативную блокировку и запись в файловую систему, поэтому важны
@@ -46,7 +46,7 @@
 - Не добавляйте интеграционные пакеты для фреймворков, хранилище, фоновые задачи, автоматические
   повторы или резервные сценарии, телеметрию и другие возможности, не относящиеся к решаемой задаче.
 
-Подробные границы описаны в [модели безопасности](https://github.com/yaleksandr89/archive-guard/blob/master/docs/security-model.md).
+Подробные границы описаны в [модели безопасности](https://github.com/yaleksandr89/archive-guard/blob/master/docs/langs/ru/security-model.md).
 
 ## Ветки
 

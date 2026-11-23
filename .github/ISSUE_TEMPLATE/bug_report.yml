@@ -1,0 +1,74 @@
+name: Bug report
+description: Report reproducible incorrect behavior in archive inspection or extraction.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: "For suspected vulnerabilities, use the [security policy](https://github.com/yaleksandr89/archive-guard/security/policy), not a public issue. Never attach passwords, real user files, or sensitive archives."
+  - type: input
+    id: version
+    attributes:
+      label: Package version or commit SHA
+      placeholder: "1.x or full commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Runtime environment
+      description: PHP version, operating system, and relevant ZipArchive/libzip version if known.
+      placeholder: "PHP 8.5; Linux; libzip ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: operation
+    attributes:
+      label: Affected operation
+      options:
+        - inspect()
+        - extract() - Atomic
+        - extract() - Merge / Reject
+        - extract() - Merge / Skip
+        - extract() - Merge / Overwrite
+        - Other or not yet known
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Archive format
+      options:
+        - ZIP
+        - TAR
+        - TAR.GZ
+        - Not identified
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include relevant ArchivePolicy limits and ExtractionOptions; use only synthetic data.
+      placeholder: "1. Create a synthetic archive ...\n2. Call inspect() or extract() ...\n3. Observe ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and safe diagnostics
+      description: Include violation codes or exception classes without secrets or private paths.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before submitting
+      options:
+        - label: "This report contains no credentials, real user archives, private data, or exploit details."
+          required: true
