@@ -23,7 +23,9 @@
     ],
     "support": {
         "issues": "https://github.com/yaleksandr89/archive-guard/issues",
-        "source": "https://github.com/yaleksandr89/archive-guard"
+        "source": "https://github.com/yaleksandr89/archive-guard",
+        "forum": "https://github.com/yaleksandr89/archive-guard/discussions",
+        "security": "https://github.com/yaleksandr89/archive-guard/security/policy"
     },
     "funding": [
         {
