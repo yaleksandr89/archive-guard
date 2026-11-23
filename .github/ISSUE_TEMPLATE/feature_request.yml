@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a concrete improvement to ZIP, TAR, or TAR.GZ inspection or extraction.
+title: "feat: "
+body:
+  - type: markdown
+    attributes:
+      value: "For security vulnerabilities, follow the [private-reporting instructions](https://github.com/yaleksandr89/archive-guard/security/policy). Discuss substantial API or security-model changes before implementation."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case
+      description: Describe the real application need, not only the desired implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Which public operation, policy, format, extraction mode, or result would change?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include simpler caller-side solutions when applicable.
+    validations:
+      required: false
+  - type: textarea
+    id: implications
+    attributes:
+      label: Compatibility and security implications
+      description: Describe effects on public API, resource limits, filenames, passwords, or filesystem safety, if relevant.
+    validations:
+      required: false

@@ -13,7 +13,7 @@
 
 | Русский | English | Español | 中文 | Français | Deutsch |
 |---|---|---|---|---|---|
-| **Выбран** | [English](./docs/readme/README_en.md) | [Español](./docs/readme/README_es.md) | [中文](./docs/readme/README_zh.md) | [Français](./docs/readme/README_fr.md) | [Deutsch](./docs/readme/README_de.md) |
+| **Выбран** | [English](./docs/langs/en/README.md) | [Español](./docs/langs/es/README.md) | [中文](./docs/langs/zh/README.md) | [Français](./docs/langs/fr/README.md) | [Deutsch](./docs/langs/de/README.md) |
 
 Archive Guard — PHP-библиотека для проверки ZIP, TAR и TAR.GZ перед распаковкой
 и извлечения файлов с заранее заданными ограничениями.
@@ -41,7 +41,7 @@ Archive Guard — PHP-библиотека для проверки ZIP, TAR и T
 - возвращает типизированные результаты и структурированные причины отклонения.
 
 Подробные различия между ZIP, TAR и TAR.GZ описаны в
-[справочнике поддерживаемых архивов](docs/reference/supported-archives.md).
+[справочнике поддерживаемых архивов](docs/langs/ru/reference/supported-archives.md).
 
 ## Требования
 
@@ -104,7 +104,7 @@ $inspection = new ArchiveGuard()->inspect(
 
 Значения ограничений в примере выбраны только для демонстрации. Подбирать их нужно под размер
 архивов, которые действительно ожидает ваше приложение. Подробный сценарий разобран в
-[руководстве по `inspect()`](docs/guides/inspection.md).
+[руководстве по `inspect()`](docs/langs/ru/guides/inspection.md).
 
 ### Извлечение файлов
 
@@ -154,7 +154,7 @@ echo 'Записано байт: ' . $result->bytesWritten() . PHP_EOL;
 зависящие от каталога назначения и выбранного режима.
 
 Подробные контракты Atomic, Merge, блокировки и конфликтов описаны в
-[руководстве по извлечению](docs/guides/extraction.md).
+[руководстве по извлечению](docs/langs/ru/guides/extraction.md).
 
 ## Политика проверки
 
@@ -169,7 +169,7 @@ echo 'Записано байт: ' . $result->bytesWritten() . PHP_EOL;
 
 Готовых универсальных значений здесь нет: допустимый архив для загрузки аватара и допустимый
 архив с резервной копией будут иметь разные пределы. Все параметры и правила их применения
-описаны в [справочнике политики](docs/reference/policy-and-errors.md).
+описаны в [справочнике политики](docs/langs/ru/reference/policy-and-errors.md).
 
 ## Нарушения и ошибки
 
@@ -232,7 +232,7 @@ try {
 </details>
 
 Полный список кодов нарушений и исключений находится в
-[справочнике ошибок](docs/reference/policy-and-errors.md).
+[справочнике ошибок](docs/langs/ru/reference/policy-and-errors.md).
 
 ## Безопасность
 
@@ -249,7 +249,7 @@ Merge предназначен для существующего каталог�
 `Reject`, `Skip` или `Overwrite`. Оба режима используют кооперативную блокировку Archive Guard.
 
 Подробная модель проверки и применения результата описана в
-[модели безопасности](docs/security-model.md).
+[модели безопасности](docs/langs/ru/security-model.md).
 
 ## Обратная связь
 
