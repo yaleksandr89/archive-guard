@@ -4,7 +4,7 @@
 [![CI](https://github.com/yaleksandr89/archive-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/yaleksandr89/archive-guard/actions/workflows/ci.yml)
 [![Latest Stable Version](https://img.shields.io/packagist/v/yaleksandr89/archive-guard.svg?style=flat-square)](https://packagist.org/packages/yaleksandr89/archive-guard)
 [![Total Downloads](https://img.shields.io/packagist/dt/yaleksandr89/archive-guard.svg?style=flat-square)](https://packagist.org/packages/yaleksandr89/archive-guard)
-[![PHP](https://img.shields.io/badge/PHP-%5E8.4-777BB4.svg?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![PHP](https://img.shields.io/badge/PHP-8.4%20%7C%208.5-777BB4.svg?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](../../../LICENSE)
 
 ![Archive Guard — 用于 PHP 的 ZIP、TAR 和 TAR.GZ 检查与解压](../../assets/archive-guard-readme-cover.png)
@@ -40,7 +40,7 @@ ZIP、TAR、TAR.GZ 的区别参阅[支持的归档参考](reference/supported-ar
 
 ## 要求
 
-- PHP `^8.4`;
+- PHP `>=8.4 <8.6`;
 - `ext-zip`;
 - `ext-zlib`.
 

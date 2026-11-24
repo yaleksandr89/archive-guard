@@ -17,7 +17,7 @@ Gracias por querer mejorar Archive Guard. Los cambios aquí afectan al tratamien
 
 ## Contrato del paquete
 
-- El paquete sigue siendo una biblioteca independiente de frameworks para PHP `^8.4`.
+- El paquete sigue siendo una biblioteca independiente de frameworks para PHP `>=8.4 <8.6`.
 - ZIP, TAR y TAR.GZ se detectan por el contenido.
 - Las operaciones públicas principales son `ArchiveGuard::inspect()` y `ArchiveGuard::extract()`.
 - Los límites se configuran con `ArchivePolicy`.

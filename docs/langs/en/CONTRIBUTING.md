@@ -17,7 +17,7 @@ Thank you for improving Archive Guard. Changes here affect untrusted archive han
 
 ## Package contract
 
-- The package remains a framework-agnostic library for PHP `^8.4`.
+- The package remains a framework-agnostic library for PHP `>=8.4 <8.6`.
 - Supported ZIP, TAR, and TAR.GZ formats are detected from contents.
 - The main public operations are `ArchiveGuard::inspect()` and `ArchiveGuard::extract()`.
 - `ArchivePolicy` supplies resource limits.
