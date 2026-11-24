@@ -42,7 +42,7 @@
     "require": {
         "ext-zip": "*",
         "ext-zlib": "*",
-        "php": "^8.4"
+        "php": ">=8.4 <8.6"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.95.26",

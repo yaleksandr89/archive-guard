@@ -6,7 +6,7 @@ This repository is the independent Composer library `yaleksandr89/archive-guard`
 
 ## PHP and design
 
-- The Composer support contract is `php: ^8.4` with `ext-zip` and `ext-zlib`. Verify the currently stable PHP release independently at the start of a new implementation task; do not change the package support floor without an owner decision.
+- The Composer support contract is `php: >=8.4 <8.6` with `ext-zip` and `ext-zlib`. Verify the currently stable PHP release independently at the start of a new implementation task; do not change the package support floor without an owner decision.
 - The normative code style is PHP-FIG PER Coding Style 3.1 plus its required PSR-1 base. PSR-12 is a predecessor, not a second parallel standard. `.php-cs-fixer.dist.php` enforces the supported subset using `@PER-CS`. Resolve any conflict with the formatter and owner style before editing PHP.
 - Use `declare(strict_types=1)`, PSR-4, four spaces, LF, native and precise types, explicit visibility and error semantics. Keep identifiers in English. For PHP 8.4+, use clear direct `new Foo()->method()` syntax and consistently import global classes when appropriate.
 - Use `final` for non-extension leaf classes and `readonly` for genuinely immutable data. Keep the core framework-agnostic and dependencies minimal. Introduce abstractions and patterns only for demonstrated variation. Do not add framework bundles, database or storage adapters, background jobs, retry/fallback, telemetry, or Docker without an approved use case.

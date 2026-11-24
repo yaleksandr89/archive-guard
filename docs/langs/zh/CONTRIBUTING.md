@@ -17,7 +17,7 @@
 
 ## 包的契约
 
-- 本包是面向 PHP `^8.4` 的框架无关库。
+- 本包是面向 PHP `>=8.4 <8.6` 的框架无关库。
 - 根据内容识别 ZIP、TAR 和 TAR.GZ。
 - 主要公共操作为 `ArchiveGuard::inspect()` 和 `ArchiveGuard::extract()`。
 - 资源限制通过 `ArchivePolicy` 设置。
